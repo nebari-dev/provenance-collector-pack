@@ -1,0 +1,118 @@
+# =============================================================================
+# Image
+# =============================================================================
+image:
+  repository: ghcr.io/nebari-dev/provenance-collector
+  tag: ""  # defaults to Chart appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# CronJob Schedule
+# =============================================================================
+# Cron expression for how often the collector runs.
+schedule: "0 6 * * *"  # Daily at 06:00 UTC
+
+# =============================================================================
+# Collector Configuration
+# =============================================================================
+config:
+  # Namespaces to scan (empty = all namespaces).
+  namespaces: []
+  # Namespaces to exclude from scanning.
+  excludeNamespaces: []
+  # Verify cosign signatures on discovered images.
+  verifySignatures: true
+  # Path or KMS URI for cosign public key (empty = existence check only).
+  cosignPublicKey: ""
+  # Discover deployed Helm releases.
+  helmEnabled: true
+  # Check registries for newer image/chart versions.
+  checkUpdates: true
+  # Report output type: "pvc" or "configmap".
+  reportOutput: "pvc"
+  # Filesystem path for PVC-based reports.
+  reportPath: /reports
+  # ConfigMap name for configmap-based reports.
+  reportConfigMap: provenance-report
+  # Timeout for registry operations.
+  registryTimeout: 30s
+  # Cluster name included in report metadata (informational).
+  clusterName: ""
+
+# =============================================================================
+# Persistence (PVC for report storage)
+# =============================================================================
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+# =============================================================================
+# Registry Credentials
+# =============================================================================
+registryCredentials:
+  # Use an existing docker-registry Secret for private registry access.
+  existingSecret: ""
+
+# =============================================================================
+# Resources
+# =============================================================================
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# =============================================================================
+# Job Settings
+# =============================================================================
+backoffLimit: 3
+activeDeadlineSeconds: 3600
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid
+
+# =============================================================================
+# Service Account & RBAC
+# =============================================================================
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+# =============================================================================
+# Nebari Integration
+# =============================================================================
+# Creates a NebariApp CRD that registers this pack with the nebari-operator.
+# Since this is a CronJob (not a web service), routing/auth are typically not needed.
+nebariapp:
+  enabled: false
+  # hostname: provenance.nebari.example.com  # Required when enabled
+  service:
+    name: ""
+    port: 80
+  auth:
+    enabled: false
+    provider: keycloak
+    provisionClient: true
+    redirectURI: /
+    scopes:
+      - openid
+      - profile
+      - email
+  gateway: internal
+
+# =============================================================================
+# Overrides
+# =============================================================================
+nameOverride: ""
+fullnameOverride: ""

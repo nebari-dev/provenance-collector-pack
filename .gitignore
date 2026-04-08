@@ -1,14 +1,17 @@
+# Build output
+bin/
+coverage.out
+
 # Worktrees
 .worktrees/
 
-# Dev cache (cloned nebari-operator for local dev)
-dev/.cache/
-
 # Helm
-examples/wrap-existing-chart/chart/charts/
 *.tgz
 
-# Python
+# Go
+vendor/
+
+# Python (dev scripts)
 __pycache__/
 *.pyc
 .venv/

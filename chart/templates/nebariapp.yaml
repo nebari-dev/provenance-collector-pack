@@ -1,0 +1,36 @@
+{{/*
+  NebariApp Custom Resource
+  --------------------------
+  Registers this software pack with the nebari-operator.
+  Since the provenance collector is a CronJob (not a web service),
+  routing and auth are typically not needed. Enable this to have the
+  nebari-operator track the pack as a managed application.
+*/}}
+{{- if .Values.nebariapp.enabled }}
+apiVersion: reconcilers.nebari.dev/v1
+kind: NebariApp
+metadata:
+  name: {{ include "provenance-collector.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "provenance-collector.labels" . | nindent 4 }}
+spec:
+  hostname: {{ required "nebariapp.hostname is required when nebariapp.enabled is true" .Values.nebariapp.hostname }}
+  service:
+    name: {{ .Values.nebariapp.service.name | default (include "provenance-collector.fullname" .) }}
+    port: {{ .Values.nebariapp.service.port | default 80 }}
+  {{- with .Values.nebariapp.auth }}
+  auth:
+    enabled: {{ .enabled | default false }}
+    provider: {{ .provider | default "keycloak" }}
+    provisionClient: {{ .provisionClient | default true }}
+    redirectURI: {{ .redirectURI | default "/" }}
+    {{- with .scopes }}
+    scopes:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- with .Values.nebariapp.gateway }}
+  gateway: {{ . }}
+  {{- end }}
+{{- end }}

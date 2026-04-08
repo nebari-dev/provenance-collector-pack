@@ -1,0 +1,14 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gofmt
+
+linters-settings:
+  errcheck:
+    check-blank: false
