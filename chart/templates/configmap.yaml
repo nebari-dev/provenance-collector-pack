@@ -13,6 +13,7 @@ data:
   PROVENANCE_HELM_ENABLED: {{ .Values.config.helmEnabled | quote }}
   PROVENANCE_CHECK_UPDATES: {{ .Values.config.checkUpdates | quote }}
   PROVENANCE_SKIP_PRERELEASE: {{ .Values.config.skipPrerelease | quote }}
+  PROVENANCE_UPDATE_LEVEL: {{ .Values.config.updateLevel | quote }}
   PROVENANCE_CHECK_SBOM: {{ .Values.config.checkSBOM | quote }}
   PROVENANCE_CHECK_PROVENANCE: {{ .Values.config.checkProvenance | quote }}
   PROVENANCE_REPORT_OUTPUT: {{ .Values.config.reportOutput | quote }}

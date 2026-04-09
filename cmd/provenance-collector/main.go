@@ -101,7 +101,7 @@ func run(ctx context.Context) error {
 	digestResolver := registry.NewDigestResolver(cfg.RegistryTimeout)
 	var updateChecker report.UpdateChecker
 	if cfg.CheckUpdates {
-		updateChecker = registry.NewUpdateChecker(cfg.SkipPrerelease)
+		updateChecker = registry.NewUpdateChecker(cfg.SkipPrerelease, cfg.UpdateLevel)
 	}
 	var sigVerifier report.SignatureVerifier
 	if cfg.VerifySignatures {

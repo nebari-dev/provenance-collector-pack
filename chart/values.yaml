@@ -32,6 +32,10 @@ config:
   checkUpdates: true
   # Skip pre-release versions (alpha, beta, rc) when checking for updates.
   skipPrerelease: true
+  # Minimum version bump to flag as an update: "patch", "minor", or "major".
+  # "patch" flags all updates, "minor" ignores patch-only bumps, "major" only
+  # flags major version changes.
+  updateLevel: "patch"
   # Check for SBOM attestations on discovered images.
   checkSBOM: true
   # Check for SLSA provenance attestations on discovered images.

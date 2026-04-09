@@ -18,17 +18,28 @@ type UpdateChecker interface {
 	Check(ctx context.Context, imageRef string) (*report.UpdateInfo, error)
 }
 
+// UpdateLevel controls which version bumps are flagged as available updates.
+const (
+	UpdateLevelPatch = "patch" // flag patch, minor, and major (default)
+	UpdateLevelMinor = "minor" // flag minor and major only
+	UpdateLevelMajor = "major" // flag major only
+)
+
 // RegistryUpdateChecker checks registries for newer image tags.
 type RegistryUpdateChecker struct {
 	skipPrerelease bool
+	updateLevel    string
 	opts           []crane.Option
 }
 
 // NewUpdateChecker creates an UpdateChecker that queries container registries.
-// When skipPrerelease is true, versions with pre-release identifiers (alpha,
-// beta, rc, etc.) are excluded from update results.
-func NewUpdateChecker(skipPrerelease bool, opts ...crane.Option) UpdateChecker {
-	return &RegistryUpdateChecker{skipPrerelease: skipPrerelease, opts: opts}
+// skipPrerelease filters out alpha/beta/RC versions. updateLevel controls which
+// version bumps are reported: "patch" (all), "minor" (minor+major), "major".
+func NewUpdateChecker(skipPrerelease bool, updateLevel string, opts ...crane.Option) UpdateChecker {
+	if updateLevel == "" {
+		updateLevel = UpdateLevelPatch
+	}
+	return &RegistryUpdateChecker{skipPrerelease: skipPrerelease, updateLevel: updateLevel, opts: opts}
 }
 
 func (c *RegistryUpdateChecker) Check(ctx context.Context, imageRef string) (*report.UpdateInfo, error) {
@@ -85,15 +96,40 @@ func (c *RegistryUpdateChecker) Check(ctx context.Context, imageRef string) (*re
 		newest := versions[len(versions)-1]
 		if newest.GreaterThan(currentVer) {
 			info.NewestAvailable = newest.Original()
-			info.UpdateAvailable = true
 		}
 	}
 
-	if info.LatestInMajor != "" {
-		info.UpdateAvailable = true
-	}
+	// Determine if the update should be flagged based on updateLevel
+	info.UpdateAvailable = c.shouldFlag(currentVer, info)
 
 	return info, nil
+}
+
+// shouldFlag returns true if any detected update meets the configured level.
+func (c *RegistryUpdateChecker) shouldFlag(current *semver.Version, info *report.UpdateInfo) bool {
+	candidates := []string{info.LatestInMajor, info.NewestAvailable}
+	for _, raw := range candidates {
+		if raw == "" {
+			continue
+		}
+		v, err := semver.NewVersion(raw)
+		if err != nil || !v.GreaterThan(current) {
+			continue
+		}
+		switch c.updateLevel {
+		case UpdateLevelMajor:
+			if v.Major() != current.Major() {
+				return true
+			}
+		case UpdateLevelMinor:
+			if v.Major() != current.Major() || v.Minor() != current.Minor() {
+				return true
+			}
+		default: // patch — any newer version
+			return true
+		}
+	}
+	return false
 }
 
 // parseImageRef splits an image reference into repository and tag.

@@ -24,6 +24,8 @@ type Config struct {
 	CheckUpdates bool
 	// Whether to skip pre-release versions (alpha, beta, rc) when checking updates.
 	SkipPrerelease bool
+	// Minimum version bump level to flag as an update: "patch", "minor", or "major".
+	UpdateLevel string
 	// Whether to check for SBOM attestations on images.
 	CheckSBOM bool
 	// Whether to check for SLSA provenance attestations on images.
@@ -55,6 +57,7 @@ func Load() *Config {
 		HelmEnabled:              envBool("PROVENANCE_HELM_ENABLED", true),
 		CheckUpdates:             envBool("PROVENANCE_CHECK_UPDATES", true),
 		SkipPrerelease:           envBool("PROVENANCE_SKIP_PRERELEASE", true),
+		UpdateLevel:              envDefault("PROVENANCE_UPDATE_LEVEL", "patch"),
 		CheckSBOM:                envBool("PROVENANCE_CHECK_SBOM", true),
 		CheckProvenance:          envBool("PROVENANCE_CHECK_PROVENANCE", true),
 		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
