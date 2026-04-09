@@ -10,12 +10,15 @@ import (
 	"time"
 
 	"github.com/nebari-dev/provenance-collector/internal/dashboard"
+	"github.com/nebari-dev/provenance-collector/internal/report"
 )
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})))
+
+	slog.Info("starting provenance dashboard", "version", report.Version)
 
 	reportsDir := os.Getenv("PROVENANCE_REPORT_PATH")
 	if reportsDir == "" {
@@ -26,6 +29,11 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
+
+	slog.Info("configuration loaded",
+		"addr", addr,
+		"reportsDir", reportsDir,
+	)
 
 	srv := dashboard.NewServer(reportsDir)
 
