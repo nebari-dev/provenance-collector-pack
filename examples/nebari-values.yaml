@@ -1,0 +1,62 @@
+# Nebari deployment — requires the nebari-operator, Envoy Gateway, and Keycloak.
+#
+# The target namespace must have the label:
+#   nebari.dev/managed=true
+#
+# Deploy with:
+#   helm install provenance-collector chart/ \
+#     -f examples/nebari-values.yaml \
+#     --namespace provenance-system --create-namespace
+
+schedule: "0 6 * * *"
+
+config:
+  namespaces: []
+  excludeNamespaces: []
+  verifySignatures: true
+  helmEnabled: true
+  checkUpdates: true
+  reportOutput: pvc
+  reportPath: /reports
+  clusterName: ""  # Set to your cluster name.
+
+persistence:
+  enabled: true
+  size: 1Gi
+
+# Enable the web dashboard.
+webUI:
+  enabled: true
+
+# Register with the nebari-operator and expose through the gateway.
+nebariapp:
+  enabled: true
+  hostname: provenance.example.com  # Replace with your hostname.
+  service:
+    port: 8080
+  routing:
+    tls:
+      enabled: true
+  auth:
+    enabled: true
+    provider: keycloak
+    provisionClient: true
+    enforceAtGateway: true
+    redirectURI: /oauth2/callback
+    scopes:
+      - openid
+      - profile
+      - email
+      - groups
+    groups: []  # Restrict access to specific groups if needed.
+  landingPage:
+    enabled: true
+    displayName: "Provenance Collector"
+    description: "Container image provenance and compliance reports"
+    category: "Platform"
+    priority: 10
+    healthCheck:
+      enabled: true
+      path: /healthz
+      intervalSeconds: 30
+      timeoutSeconds: 5

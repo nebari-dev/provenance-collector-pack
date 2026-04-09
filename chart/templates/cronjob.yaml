@@ -23,6 +23,10 @@ spec:
             {{- include "provenance-collector.selectorLabels" . | nindent 12 }}
         spec:
           serviceAccountName: {{ include "provenance-collector.serviceAccountName" . }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            fsGroup: 65532
           restartPolicy: OnFailure
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
@@ -32,6 +36,11 @@ spec:
             - name: collector
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
               envFrom:
                 - configMapRef:
                     name: {{ include "provenance-collector.fullname" . }}-config

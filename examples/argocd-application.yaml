@@ -1,0 +1,45 @@
+# ArgoCD Application for deploying provenance-collector from the Nebari Helm
+# repository. Update repoURL and targetRevision once the chart is published.
+#
+# The target namespace must have the label:
+#   nebari.dev/managed=true
+# if nebariapp.enabled is true.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: provenance-collector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://nebari-dev.github.io/helm-repository
+    chart: provenance-collector
+    targetRevision: "0.1.0"  # Pin to a released version.
+    helm:
+      valuesObject:
+        config:
+          clusterName: my-cluster
+          verifySignatures: true
+          helmEnabled: true
+          checkUpdates: true
+          reportOutput: pvc
+
+        webUI:
+          enabled: true
+
+        nebariapp:
+          enabled: true
+          hostname: provenance.example.com  # Replace with your hostname.
+          landingPage:
+            enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: provenance-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

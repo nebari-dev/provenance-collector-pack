@@ -1,0 +1,33 @@
+# Standalone deployment — no nebari-operator required.
+#
+# Deploy with:
+#   helm install provenance-collector chart/ \
+#     -f examples/standalone-values.yaml \
+#     --namespace provenance-system --create-namespace
+
+# Run daily at 6 AM UTC.
+schedule: "0 6 * * *"
+
+config:
+  # Scan all namespaces (default).
+  namespaces: []
+  excludeNamespaces: []
+  verifySignatures: true
+  helmEnabled: true
+  checkUpdates: true
+  # Write reports to PVC.
+  reportOutput: pvc
+  reportPath: /reports
+  clusterName: my-cluster
+
+persistence:
+  enabled: true
+  size: 1Gi
+
+# Enable the web dashboard (accessible via port-forward).
+webUI:
+  enabled: true
+
+# No Nebari integration.
+nebariapp:
+  enabled: false
