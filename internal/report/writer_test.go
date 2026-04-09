@@ -64,6 +64,86 @@ func TestPVCWriter(t *testing.T) {
 	}
 }
 
+func TestPVCWriter_Retention(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write an "old" report file with a past modification time
+	oldFile := filepath.Join(dir, "provenance-20240101-060000.json")
+	if err := os.WriteFile(oldFile, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pastTime := time.Now().Add(-10 * 24 * time.Hour) // 10 days ago
+	if err := os.Chtimes(oldFile, pastTime, pastTime); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a "recent" report file
+	recentFile := filepath.Join(dir, "provenance-20250601-060000.json")
+	if err := os.WriteFile(recentFile, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Use 7-day retention — old file should be pruned
+	writer := NewPVCWriter(dir, 7*24*time.Hour)
+	if err := writer.Write(context.Background(), testReport()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(oldFile); !os.IsNotExist(err) {
+		t.Error("expected old report to be pruned")
+	}
+	if _, err := os.Stat(recentFile); err != nil {
+		t.Error("expected recent report to be kept")
+	}
+}
+
+func TestPVCWriter_RetentionDisabled(t *testing.T) {
+	dir := t.TempDir()
+
+	oldFile := filepath.Join(dir, "provenance-20240101-060000.json")
+	if err := os.WriteFile(oldFile, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pastTime := time.Now().Add(-365 * 24 * time.Hour)
+	if err := os.Chtimes(oldFile, pastTime, pastTime); err != nil {
+		t.Fatal(err)
+	}
+
+	// Retention -1 means keep forever
+	writer := NewPVCWriter(dir, -1)
+	if err := writer.Write(context.Background(), testReport()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(oldFile); err != nil {
+		t.Error("expected old report to be kept when retention is disabled")
+	}
+}
+
+func TestPVCWriter_RetentionKeepsLatest(t *testing.T) {
+	dir := t.TempDir()
+
+	// provenance-latest.json should never be pruned even if old
+	latestFile := filepath.Join(dir, "provenance-latest.json")
+	if err := os.WriteFile(latestFile, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pastTime := time.Now().Add(-30 * 24 * time.Hour)
+	if err := os.Chtimes(latestFile, pastTime, pastTime); err != nil {
+		t.Fatal(err)
+	}
+
+	writer := NewPVCWriter(dir, 1*time.Hour)
+	if err := writer.Write(context.Background(), testReport()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// provenance-latest.json is rewritten by Write, so it'll exist with new content
+	if _, err := os.Stat(latestFile); err != nil {
+		t.Error("expected provenance-latest.json to exist")
+	}
+}
+
 func TestConfigMapWriter(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	writer := NewConfigMapWriter(client, "test-report", "default")
