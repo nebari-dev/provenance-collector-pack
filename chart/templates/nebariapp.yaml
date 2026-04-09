@@ -1,11 +1,3 @@
-{{/*
-  NebariApp Custom Resource
-  --------------------------
-  Registers this software pack with the nebari-operator.
-  Since the provenance collector is a CronJob (not a web service),
-  routing and auth are typically not needed. Enable this to have the
-  nebari-operator track the pack as a managed application.
-*/}}
 {{- if .Values.nebariapp.enabled }}
 apiVersion: reconcilers.nebari.dev/v1
 kind: NebariApp
@@ -17,17 +9,46 @@ metadata:
 spec:
   hostname: {{ required "nebariapp.hostname is required when nebariapp.enabled is true" .Values.nebariapp.hostname }}
   service:
-    name: {{ .Values.nebariapp.service.name | default (include "provenance-collector.fullname" .) }}
-    port: {{ .Values.nebariapp.service.port | default 80 }}
+    name: {{ .Values.nebariapp.service.name | default (printf "%s-web" (include "provenance-collector.fullname" .)) }}
+    port: {{ .Values.nebariapp.service.port | default 8080 }}
+  routing:
+    routes:
+      - pathPrefix: /
+        pathType: PathPrefix
+    {{- with .Values.nebariapp.routing.tls }}
+    tls:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- with .Values.nebariapp.auth }}
   auth:
-    enabled: {{ .enabled | default false }}
+    enabled: {{ .enabled | default true }}
     provider: {{ .provider | default "keycloak" }}
     provisionClient: {{ .provisionClient | default true }}
-    redirectURI: {{ .redirectURI | default "/" }}
-    {{- with .scopes }}
+    enforceAtGateway: {{ .enforceAtGateway | default true }}
+    redirectURI: {{ .redirectURI | default "/oauth2/callback" }}
     scopes:
+      {{- toYaml (.scopes | default (list "openid" "profile" "email" "groups")) | nindent 6 }}
+    {{- with .groups }}
+    groups:
       {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- with .Values.nebariapp.landingPage }}
+  landingPage:
+    enabled: {{ .enabled | default false }}
+    displayName: {{ .displayName | default "Provenance Collector" | quote }}
+    description: {{ .description | default "Container image provenance and compliance reports" | quote }}
+    {{- with .icon }}
+    icon: {{ . | quote }}
+    {{- end }}
+    category: {{ .category | default "Platform" | quote }}
+    priority: {{ .priority | default 10 }}
+    {{- with .healthCheck }}
+    healthCheck:
+      enabled: {{ .enabled | default true }}
+      path: {{ .path | default "/healthz" }}
+      intervalSeconds: {{ .intervalSeconds | default 30 }}
+      timeoutSeconds: {{ .timeoutSeconds | default 5 }}
     {{- end }}
   {{- end }}
   {{- with .Values.nebariapp.gateway }}

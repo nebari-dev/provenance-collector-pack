@@ -42,6 +42,23 @@ config:
   clusterName: ""
 
 # =============================================================================
+# Web Dashboard
+# =============================================================================
+# Optional web UI that shows provenance reports, timelines, and summaries.
+# Requires persistence.enabled=true (reads reports from the shared PVC).
+webUI:
+  enabled: false
+  replicas: 1
+  port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# =============================================================================
 # Persistence (PVC for report storage)
 # =============================================================================
 persistence:
@@ -93,23 +110,41 @@ rbac:
 # Nebari Integration
 # =============================================================================
 # Creates a NebariApp CRD that registers this pack with the nebari-operator.
-# Since this is a CronJob (not a web service), routing/auth are typically not needed.
+# When webUI.enabled is true, the NebariApp routes traffic to the dashboard.
 nebariapp:
   enabled: false
   # hostname: provenance.nebari.example.com  # Required when enabled
   service:
-    name: ""
-    port: 80
+    name: ""   # Defaults to <fullname>-web
+    port: 8080
+  routing:
+    tls:
+      enabled: true
   auth:
-    enabled: false
+    enabled: true
     provider: keycloak
     provisionClient: true
-    redirectURI: /
+    enforceAtGateway: true
+    redirectURI: /oauth2/callback
     scopes:
       - openid
       - profile
       - email
-  gateway: internal
+      - groups
+    groups: []
+  landingPage:
+    enabled: false
+    displayName: "Provenance Collector"
+    description: "Container image provenance and compliance reports"
+    icon: ""
+    category: "Platform"
+    priority: 10
+    healthCheck:
+      enabled: true
+      path: /healthz
+      intervalSeconds: 30
+      timeoutSeconds: 5
+  gateway: ""
 
 # =============================================================================
 # Overrides

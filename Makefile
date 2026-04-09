@@ -8,6 +8,7 @@ LDFLAGS := -s -w -X github.com/nebari-dev/provenance-collector/internal/report.V
 
 build:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/provenance-collector ./cmd/provenance-collector
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/dashboard ./cmd/dashboard
 
 test:
 	go test -race -coverprofile=coverage.out ./...

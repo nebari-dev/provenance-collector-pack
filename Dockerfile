@@ -16,10 +16,16 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o /provenance-collector \
     ./cmd/provenance-collector
 
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w" \
+    -o /dashboard \
+    ./cmd/dashboard
+
 # Runtime stage — distroless for minimal attack surface
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /provenance-collector /provenance-collector
+COPY --from=builder /dashboard /dashboard
 
 USER nonroot:nonroot
 
