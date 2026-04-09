@@ -9,7 +9,10 @@ linters:
     - staticcheck
     - unused
     - misspell
-    - gofmt
   settings:
     errcheck:
       check-blank: false
+
+formatters:
+  enable:
+    - gofmt
