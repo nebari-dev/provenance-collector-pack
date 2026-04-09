@@ -130,9 +130,8 @@ const indexHTML = `<!DOCTYPE html>
 <nav class="nav">
   <div class="nav-inner">
     <div class="nav-brand">
-      <img src="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/symbol/nebari-favicon-dark.svg" alt=""
-           onerror="this.style.display='none'">
-      <span>Nebari</span>
+      <img src="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/logo-mark/horizontal/Nebari-Logo-Horizontal-Lockup-White-text.svg" alt="Nebari"
+           onerror="this.style.display='none'" style="height:20px">
       <span class="sep">/</span>
       <span>Provenance</span>
     </div>
