@@ -182,3 +182,144 @@ func TestIndex(t *testing.T) {
 		t.Error("expected substantial HTML body")
 	}
 }
+
+func TestIndex_ContainsDetailPanel(t *testing.T) {
+	srv := NewServer(t.TempDir())
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	for _, expected := range []string{
+		"detail-panel",
+		"detail-overlay",
+		"openDetailIdx",
+		"closeDetail",
+		"detail-section",
+		"lastFilteredImages",
+	} {
+		if !contains(body, expected) {
+			t.Errorf("expected HTML to contain %q", expected)
+		}
+	}
+}
+
+func TestGetReport_ValidJSON(t *testing.T) {
+	dir := setupTestDir(t)
+	srv := NewServer(dir)
+
+	req := httptest.NewRequest("GET", "/api/reports/provenance-20250615-060000.json", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var report map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &report); err != nil {
+		t.Fatalf("response is not valid JSON: %v", err)
+	}
+
+	if _, ok := report["metadata"]; !ok {
+		t.Error("expected metadata field in report")
+	}
+	if _, ok := report["images"]; !ok {
+		t.Error("expected images field in report")
+	}
+	if _, ok := report["summary"]; !ok {
+		t.Error("expected summary field in report")
+	}
+}
+
+func TestListReports_SortedNewestFirst(t *testing.T) {
+	dir := t.TempDir()
+	// Create two reports with different timestamps
+	report1 := `{"metadata":{"generatedAt":"2025-06-14T06:00:00Z","collectorVersion":"test","namespacesScanned":["default"]},"images":[],"summary":{"totalImages":0}}`
+	report2 := `{"metadata":{"generatedAt":"2025-06-15T06:00:00Z","collectorVersion":"test","namespacesScanned":["default"]},"images":[],"summary":{"totalImages":0}}`
+
+	if err := os.WriteFile(filepath.Join(dir, "provenance-20250614-060000.json"), []byte(report1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "provenance-20250615-060000.json"), []byte(report2), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServer(dir)
+	req := httptest.NewRequest("GET", "/api/reports", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var reports []reportEntry
+	if err := json.Unmarshal(w.Body.Bytes(), &reports); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if len(reports) != 2 {
+		t.Fatalf("expected 2 reports, got %d", len(reports))
+	}
+	// Newest first
+	if reports[0].GeneratedAt < reports[1].GeneratedAt {
+		t.Errorf("expected newest first, got %s before %s", reports[0].GeneratedAt, reports[1].GeneratedAt)
+	}
+}
+
+func TestGetReport_EmptyFilename(t *testing.T) {
+	srv := NewServer(t.TempDir())
+	req := httptest.NewRequest("GET", "/api/reports/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty filename, got %d", w.Code)
+	}
+}
+
+func TestListReports_SkipsMalformedFiles(t *testing.T) {
+	dir := t.TempDir()
+	// Valid report
+	if err := os.WriteFile(filepath.Join(dir, "provenance-20250615-060000.json"), []byte(testReport), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Malformed JSON
+	if err := os.WriteFile(filepath.Join(dir, "provenance-20250614-060000.json"), []byte("{bad json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Non-JSON file (should be skipped)
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a report"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServer(dir)
+	req := httptest.NewRequest("GET", "/api/reports", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var reports []reportEntry
+	if err := json.Unmarshal(w.Body.Bytes(), &reports); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if len(reports) != 1 {
+		t.Errorf("expected 1 valid report (skipping malformed + non-json), got %d", len(reports))
+	}
+}
+
+func TestListReports_NonexistentDir(t *testing.T) {
+	srv := NewServer("/nonexistent/path")
+	req := httptest.NewRequest("GET", "/api/reports", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for nonexistent dir, got %d", w.Code)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
