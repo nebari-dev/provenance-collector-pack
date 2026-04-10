@@ -1,8 +1,9 @@
 # Provenance Collector
 
 A Kubernetes-native tool that discovers running container images and Helm
-releases, resolves digests, verifies signatures, checks for available updates,
-and generates compliance-grade provenance reports.
+releases, resolves digests, verifies signatures, detects SLSA provenance
+and SBOM attestations, checks for available updates, and generates
+compliance-grade provenance reports.
 
 Deployed as a **Kubernetes CronJob** and packaged as a
 [Nebari Software Pack](https://github.com/nebari-dev/nebari-operator).
@@ -14,10 +15,13 @@ Deployed as a **Kubernetes CronJob** and packaged as a
 | **Image Discovery** | Scans all pods across namespaces, deduplicates by workload owner |
 | **Digest Resolution** | Resolves every image tag to its immutable SHA256 digest |
 | **Signature Verification** | Checks for cosign signatures (existence or key-based verification) |
+| **SLSA Provenance** | Detects SLSA provenance attestations via OCI referrers API |
 | **SBOM Detection** | Detects attached SPDX / CycloneDX attestations |
-| **Update Checking** | Compares running tags against latest available semver tags |
+| **Update Checking** | Compares running tags against latest semver tags (configurable level, pre-release filtering) |
 | **Helm Release Tracking** | Discovers all deployed Helm releases with chart versions |
-| **Provenance Reports** | Outputs timestamped JSON reports to PVC or ConfigMap |
+| **Web Dashboard** | Optional UI with filters, sorting, pagination, and image detail panel |
+| **Grafana Integration** | JSON API compatible with the Infinity datasource for dashboards and alerting |
+| **Provenance Reports** | Outputs timestamped JSON reports to PVC or ConfigMap with automatic retention |
 
 ## Quick Start
 
@@ -54,6 +58,75 @@ kubectl get configmap provenance-report \
   -o jsonpath='{.data.report\.json}' | jq .
 ```
 
+## Web Dashboard
+
+The collector includes an optional web UI for browsing provenance reports.
+
+```yaml
+webUI:
+  enabled: true
+```
+
+Access via port-forward:
+
+```bash
+kubectl port-forward svc/provenance-collector-web 8080:8080 -n provenance-system
+# Open http://localhost:8080
+```
+
+The dashboard provides:
+
+- Summary stat cards (signed %, SLSA provenance, SBOM, updates available)
+- Report timeline to browse historical reports
+- Filterable, sortable, paginated image table
+- Click any image row for a detail panel showing signature, SLSA, SBOM, and update info
+- Helm releases table
+
+When deployed with `nebariapp.enabled: true`, the dashboard is accessible through the
+Nebari gateway with OIDC authentication.
+
+### Dashboard API
+
+The web dashboard exposes a JSON API that can be used by external tools:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/reports` | List all reports (newest first) with summary |
+| `GET /api/reports/latest` | Get the most recent report |
+| `GET /api/reports/<filename>` | Get a specific report by filename |
+| `GET /healthz` | Health check |
+
+## Grafana Integration
+
+The provenance data can be surfaced in Grafana using the
+[Infinity datasource](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/)
+plugin, which queries the dashboard's JSON API.
+
+### Setup
+
+1. Enable the web dashboard (`webUI.enabled: true`)
+2. Install the Infinity datasource in Grafana
+3. Add a datasource pointing at the dashboard service:
+   - **URL:** `http://provenance-collector-web.provenance-system.svc:8080`
+   - **Type:** JSON
+
+### Example panels
+
+**Stat panel** (unique images count):
+- Type: JSON, URL: `/api/reports/latest`
+- Column: `summary.uniqueImages`
+
+**Images table**:
+- Type: JSON, URL: `/api/reports/latest`, Root: `images`
+- Columns: `image`, `namespace`, `signature.signed`, `provenance.hasProvenance`, `update.updateAvailable`
+
+**Alerting** (images with updates):
+```
+WHEN count() OF images WHERE updateAvailable = true IS ABOVE 0
+```
+
+See [docs/configuration.md](docs/configuration.md) for the full Grafana setup guide.
+
 ## Configuration
 
 All configuration is via environment variables, set through `values.yaml`:
@@ -64,10 +137,15 @@ All configuration is via environment variables, set through `values.yaml`:
 | `PROVENANCE_EXCLUDE_NAMESPACES` | *(none)* | Namespaces to skip |
 | `PROVENANCE_VERIFY_SIGNATURES` | `true` | Check cosign signatures |
 | `PROVENANCE_COSIGN_PUBLIC_KEY` | *(empty)* | Path/KMS URI for cosign key |
+| `PROVENANCE_CHECK_SBOM` | `true` | Check for SBOM attestations |
+| `PROVENANCE_CHECK_PROVENANCE` | `true` | Check for SLSA provenance attestations |
 | `PROVENANCE_HELM_ENABLED` | `true` | Discover Helm releases |
 | `PROVENANCE_CHECK_UPDATES` | `true` | Check for newer image tags |
+| `PROVENANCE_UPDATE_LEVEL` | `patch` | Min version bump to flag: `patch`, `minor`, or `major` |
+| `PROVENANCE_SKIP_PRERELEASE` | `true` | Ignore alpha/beta/RC versions in updates |
 | `PROVENANCE_REPORT_OUTPUT` | `pvc` | Report output: `pvc` or `configmap` |
 | `PROVENANCE_REPORT_PATH` | `/reports` | Filesystem path for PVC reports |
+| `PROVENANCE_REPORT_RETENTION` | `168h` | Auto-prune reports older than this (`-1` to disable) |
 | `PROVENANCE_REGISTRY_TIMEOUT` | `30s` | Timeout for registry operations |
 | `PROVENANCE_CLUSTER_NAME` | *(empty)* | Cluster name in report metadata |
 
@@ -92,6 +170,7 @@ Reports are JSON with this structure:
       "namespace": "default",
       "workload": { "kind": "Deployment", "name": "nginx" },
       "signature": { "signed": true, "verified": true },
+      "provenance": { "hasProvenance": true, "predicateType": "https://slsa.dev/provenance/v1" },
       "sbom": { "hasSBOM": true, "format": "spdx" },
       "update": {
         "currentTag": "1.27",
@@ -116,6 +195,7 @@ Reports are JSON with this structure:
     "signedImages": 15,
     "verifiedImages": 12,
     "imagesWithSBOM": 10,
+    "imagesWithProvenance": 3,
     "imagesWithUpdates": 5,
     "totalHelmReleases": 8,
     "helmReleasesWithUpdates": 2
@@ -135,18 +215,27 @@ config:
   namespaces: []              # Empty = all namespaces
   excludeNamespaces: []
   verifySignatures: true
-  helmEnabled: true
+  checkSBOM: true
+  checkProvenance: true
   checkUpdates: true
+  updateLevel: "patch"        # "patch", "minor", or "major"
+  skipPrerelease: true
   reportOutput: "pvc"         # "pvc" or "configmap"
+  reportRetention: "168h"     # 1 week, "-1" to keep forever
 
 persistence:
   enabled: true
   size: 1Gi
 
+webUI:
+  enabled: false              # Enable the web dashboard
+
 # Nebari integration (optional)
 nebariapp:
   enabled: false
 ```
+
+See [examples/](examples/) for complete deployment examples (standalone, Nebari, ArgoCD).
 
 ## RBAC
 
@@ -198,10 +287,13 @@ kubectl logs job/test-run
 ## Architecture
 
 ```
-cmd/provenance-collector/     Entry point
+cmd/
+  provenance-collector/       Collector entry point (CronJob)
+  dashboard/                  Web dashboard entry point
 internal/
   config/                     Environment-based configuration
   kubernetes/                 Client factory (in-cluster + kubeconfig)
+  dashboard/                  HTTP server, API handlers, HTML UI
   discovery/
     images.go                 Pod-based container image discovery
     helm.go                   Helm release discovery via Helm SDK
@@ -211,11 +303,13 @@ internal/
   verify/
     cosign.go                 Signature verification via cosign
     sbom.go                   SBOM attestation detection
+    provenance.go             SLSA provenance detection via OCI referrers
   report/
     types.go                  Report JSON schema types
     generator.go              Orchestrator with concurrent enrichment
     writer.go                 PVC and ConfigMap output writers
-chart/                        Helm chart (CronJob + RBAC + NebariApp)
+chart/                        Helm chart (CronJob + RBAC + Dashboard + NebariApp)
+examples/                     Deployment examples (standalone, Nebari, ArgoCD)
 ```
 
 ## License
