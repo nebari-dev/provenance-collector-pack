@@ -49,6 +49,25 @@ jobs:
           mkdir -p dist
           helm package chart/ --destination dist/
 
+      - name: Render release notes from template
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Preserve the existing release body (user-written "What's New" section)
+          # and append the install instructions from the template
+          EXISTING=$(gh release view "${GITHUB_REF_NAME}" --json body -q .body 2>/dev/null || echo "")
+          # Render template with version
+          sed "s/\${VERSION}/${VERSION}/g" .github/release-template.md > /tmp/rendered-notes.md
+          # If the release already has a body with "What's New", merge them
+          if echo "$EXISTING" | grep -q "What's New"; then
+            # Extract the What's New section from existing body
+            WHATS_NEW=$(echo "$EXISTING" | sed -n '/## What'\''s New/,/## Installation/p' | sed '$ d')
+            # Replace the placeholder in the template
+            sed -i "/## What's New/{N;s/## What's New\n-/${WHATS_NEW}/;}" /tmp/rendered-notes.md 2>/dev/null || true
+          fi
+          gh release edit "${GITHUB_REF_NAME}" -F /tmp/rendered-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload Helm chart to release
         uses: softprops/action-gh-release@v2
         with:
