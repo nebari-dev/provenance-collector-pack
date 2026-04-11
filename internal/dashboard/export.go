@@ -62,7 +62,7 @@ func (s *Server) exportCSV(w http.ResponseWriter, rpt *report.ProvenanceReport) 
 			latestInMajor = img.Update.LatestInMajor
 		}
 
-		b.WriteString(fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+		fmt.Fprintf(&b, "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
 			csvEscape(img.Image),
 			csvEscape(img.Namespace),
 			csvEscape(img.Workload.Kind),
@@ -73,7 +73,7 @@ func (s *Server) exportCSV(w http.ResponseWriter, rpt *report.ProvenanceReport) 
 			updateAvail,
 			csvEscape(currentTag),
 			csvEscape(latestInMajor),
-		))
+		)
 	}
 
 	_, _ = w.Write([]byte(b.String()))
@@ -86,9 +86,9 @@ func (s *Server) exportMarkdown(w http.ResponseWriter, rpt *report.ProvenanceRep
 	var b strings.Builder
 
 	b.WriteString("# Provenance Report\n\n")
-	b.WriteString(fmt.Sprintf("**Generated:** %s\n\n", rpt.Metadata.GeneratedAt.Format("2006-01-02 15:04:05 UTC")))
+	fmt.Fprintf(&b, "**Generated:** %s\n\n", rpt.Metadata.GeneratedAt.Format("2006-01-02 15:04:05 UTC"))
 	if rpt.Metadata.ClusterName != "" {
-		b.WriteString(fmt.Sprintf("**Cluster:** %s\n\n", rpt.Metadata.ClusterName))
+		fmt.Fprintf(&b, "**Cluster:** %s\n\n", rpt.Metadata.ClusterName)
 	}
 	b.WriteString(fmt.Sprintf("**Namespaces:** %s\n\n", strings.Join(rpt.Metadata.NamespacesScanned, ", ")))
 
