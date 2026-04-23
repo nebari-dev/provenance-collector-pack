@@ -108,6 +108,11 @@ const indexHTML = `<!DOCTYPE html>
   .timeline-item .time { font-size: 11px; color: var(--muted); }
   .timeline-item .count { font-size: 10px; color: var(--faint); margin-top: 2px; }
 
+  /* Export buttons */
+  .export-group { display: flex; gap: 4px; }
+  .export-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .export-btn:hover { border-color: var(--purple-dark); color: var(--text); }
+
   /* Pagination */
   .pagination { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
   .pagination .page-info { }
@@ -164,6 +169,11 @@ const indexHTML = `<!DOCTYPE html>
     <div class="nav-meta">
       <span id="cluster-name"></span>
       <span id="last-updated"></span>
+      <div class="export-group">
+        <a class="export-btn" href="/api/export?format=csv" download>CSV</a>
+        <a class="export-btn" href="/api/export?format=markdown" download>Markdown</a>
+        <a class="export-btn" href="/api/reports/latest" download="provenance-report.json">JSON</a>
+      </div>
     </div>
   </div>
 </nav>

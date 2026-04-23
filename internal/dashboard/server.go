@@ -25,6 +25,7 @@ func NewServer(reportsDir string) *Server {
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/reports", s.handleListReports)
 	mux.HandleFunc("/api/reports/", s.handleGetReport)
+	mux.HandleFunc("/api/export", s.handleExport)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	s.mux = mux
 	return s
