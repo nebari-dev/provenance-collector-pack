@@ -135,6 +135,8 @@ plugin, which queries the dashboard's JSON API.
 WHEN count() OF images WHERE updateAvailable = true IS ABOVE 0
 ```
 
+An example dashboard (11 panels covering unique images, signature status, SLSA provenance, Helm releases, and more) is available at [`examples/grafana-dashboard.json`](examples/grafana-dashboard.json). Import it directly into Grafana as a `dashboard.grafana.app/v2beta1` resource.
+
 See [docs/configuration.md](docs/configuration.md) for the full Grafana setup guide.
 
 ## Configuration
