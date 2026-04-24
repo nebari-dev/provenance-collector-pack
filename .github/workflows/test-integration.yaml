@@ -12,6 +12,7 @@ on:
       - "Dockerfile"
       - "go.mod"
       - ".github/workflows/test-integration.yaml"
+      - ".github/argo-apps/provenance-collector.yaml"
 
 permissions:
   contents: write
@@ -19,7 +20,7 @@ permissions:
 jobs:
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,59 +30,59 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-
-      - name: Create kind cluster
-        uses: helm/kind-action@v1
+      - name: Set up Nebari sandbox
+        id: sandbox
+        uses: nebari-dev/action-nebari-sandbox@v1
         with:
-          cluster_name: provenance-test
+          profile: platform
+          cluster-name: provenance-test
+          resource-summary: "true"
 
-      # Build the collector image and load into kind
+      - name: Configure kubeconfig
+        run: echo "KUBECONFIG=${{ steps.sandbox.outputs.kubeconfig }}" >> $GITHUB_ENV
+
       - name: Build and load image
         run: |
           docker build --build-arg VERSION=test -t provenance-collector:test .
-          kind load docker-image provenance-collector:test --name provenance-test
+          k3d image import provenance-collector:test --cluster provenance-test
 
-      # Deploy some workloads for the collector to discover
-      - name: Deploy test workloads
+      - name: Deploy via ArgoCD
+        env:
+          GITOPS_DIR: ${{ steps.sandbox.outputs.gitops-dir }}
         run: |
-          kubectl create deployment nginx --image=nginx:1.27-alpine
-          kubectl create deployment redis --image=redis:7-alpine
-          kubectl wait --for=condition=available deployment/nginx deployment/redis --timeout=120s
+          cp -r chart/ "${GITOPS_DIR}/chart/"
+          envsubst < .github/argo-apps/provenance-collector.yaml \
+            > "${GITOPS_DIR}/templates/apps/provenance-collector.yaml"
+          git -C "${GITOPS_DIR}" config user.name "ci"
+          git -C "${GITOPS_DIR}" config user.email "ci@ci"
+          git -C "${GITOPS_DIR}" add -A
+          git -C "${GITOPS_DIR}" commit -m "add provenance-collector app"
+          chmod -R a+rX "${GITOPS_DIR}"
 
-      # Install the chart with web UI enabled and PVC for report storage
-      - name: Install provenance-collector chart
+      - name: Wait for ArgoCD sync
         run: |
-          helm install provenance-test chart/ \
-            --set image.repository=provenance-collector \
-            --set image.tag=test \
-            --set image.pullPolicy=Never \
-            --set config.reportOutput=pvc \
-            --set config.reportConfigMap=provenance-report \
-            --set persistence.enabled=true \
-            --set config.verifySignatures=false \
-            --set config.checkUpdates=false \
-            --set config.helmEnabled=true \
-            --set webUI.enabled=true
+          for i in $(seq 1 36); do
+            STATUS=$(kubectl get application.argoproj.io/provenance-collector -n argocd \
+              -o jsonpath='{.status.health.status}' 2>/dev/null || echo "NotFound")
+            echo "Attempt $i: $STATUS"
+            [ "$STATUS" = "Healthy" ] && break
+            sleep 10
+          done
+          [ "$STATUS" = "Healthy" ] || (echo "ArgoCD sync timed out" && exit 1)
 
-      # Wait for dashboard to be ready
       - name: Wait for dashboard
         run: |
           kubectl wait --for=condition=available deployment/provenance-test-provenance-collector-web --timeout=120s
 
-      # Trigger a manual run
       - name: Run provenance collection
         run: |
           kubectl create job --from=cronjob/provenance-test-provenance-collector test-run
           kubectl wait --for=condition=complete job/test-run --timeout=300s
 
-      # Wait for dashboard to serve the new report
       - name: Wait for report availability
         run: |
           kubectl port-forward svc/provenance-test-provenance-collector-web 8080:8080 &
           sleep 3
-          # Retry until report is available
           for i in $(seq 1 10); do
             COUNT=$(curl -sf http://localhost:8080/api/reports | jq 'length' 2>/dev/null || echo "0")
             if [ "$COUNT" -gt "0" ]; then
@@ -91,7 +92,6 @@ jobs:
             sleep 2
           done
 
-      # Verify the report via the dashboard API
       - name: Verify report output
         run: |
           echo "=== Job logs ==="
@@ -102,7 +102,6 @@ jobs:
           REPORT=$(curl -sf http://localhost:8080/api/reports/latest)
           echo "$REPORT" | jq .
 
-          # Validate report structure
           echo "$REPORT" | jq -e '.metadata.generatedAt' > /dev/null
           echo "$REPORT" | jq -e '.summary.totalImages > 0' > /dev/null
           echo "$REPORT" | jq -e '.images | length > 0' > /dev/null
@@ -110,10 +109,9 @@ jobs:
           echo ""
           echo "Integration test passed!"
 
-      # Capture screenshots of the web dashboard
       - name: Capture dashboard screenshots
         run: |
-          npm install -g puppeteer
+          npm install puppeteer
           mkdir -p docs/screenshots
 
           node << 'JSEOF'
@@ -128,12 +126,10 @@ jobs:
             const page = await browser.newPage();
             await page.setViewport({ width: 1440, height: 900 });
 
-            // Main dashboard
             await page.goto('http://localhost:8080', { waitUntil: 'networkidle0', timeout: 30000 });
             await new Promise(r => setTimeout(r, 2000));
             await page.screenshot({ path: 'docs/screenshots/dashboard-overview.png', fullPage: false });
 
-            // Click first image row to open detail panel
             const row = await page.$('tr.clickable');
             if (row) {
               await row.click();
@@ -146,7 +142,6 @@ jobs:
           })();
           JSEOF
 
-      # Commit screenshots to docs/ (only on push to main)
       - name: Commit screenshots
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -167,6 +162,12 @@ jobs:
           name: dashboard-screenshots
           path: docs/screenshots/
           if-no-files-found: ignore
+
+      - name: Cleanup
+        if: always()
+        run: |
+          k3d cluster delete ${{ steps.sandbox.outputs.cluster-name || 'provenance-test' }}
+          docker network rm ${{ steps.sandbox.outputs.network-name }} 2>/dev/null || true
 
       - name: Debug info on failure
         if: failure()
