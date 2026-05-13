@@ -50,16 +50,15 @@ jobs:
           kubectl create deployment redis --image=redis:7-alpine
           kubectl wait --for=condition=available deployment/nginx deployment/redis --timeout=120s
 
-      # Install the chart with web UI enabled and PVC for report storage
+      # Install the chart with the default http upload mode (kind ships a
+      # local-path storage class, so the dashboard PVC binds without extra config).
       - name: Install provenance-collector chart
         run: |
           helm install provenance-test chart/ \
             --set image.repository=provenance-collector \
             --set image.tag=test \
             --set image.pullPolicy=Never \
-            --set config.reportOutput=pvc \
-            --set config.reportConfigMap=provenance-report \
-            --set persistence.enabled=true \
+            --set persistence.mode=http \
             --set config.verifySignatures=false \
             --set config.checkUpdates=false \
             --set config.helmEnabled=true \

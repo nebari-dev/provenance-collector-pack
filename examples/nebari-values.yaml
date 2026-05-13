@@ -16,19 +16,23 @@ config:
   verifySignatures: true
   helmEnabled: true
   checkUpdates: true
-  reportOutput: pvc
   reportPath: /reports
   clusterName: ""  # Set to your cluster name.
 
 persistence:
-  enabled: true
+  # http mode is the safe default: only the dashboard pod mounts the volume,
+  # so a ReadWriteOnce class (e.g. Hetzner csi.hetzner.cloud) is fine.
+  mode: http
+  storageClass: ""
   size: 1Gi
 
-# Enable the web dashboard.
+# Required in http mode — hosts UI + internal upload endpoint.
 webUI:
   enabled: true
 
-# Register with the nebari-operator and expose through the gateway.
+# Register with the nebari-operator and expose the public UI through the gateway.
+# The internal upload Service ({fullname}-web-internal) is intentionally not
+# routed here: it must stay cluster-only.
 nebariapp:
   enabled: true
   hostname: provenance.example.com  # Replace with your hostname.

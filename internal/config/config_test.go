@@ -12,6 +12,7 @@ func TestLoadDefaults(t *testing.T) {
 		"PROVENANCE_VERIFY_SIGNATURES", "PROVENANCE_HELM_ENABLED",
 		"PROVENANCE_CHECK_UPDATES", "PROVENANCE_REPORT_OUTPUT",
 		"PROVENANCE_REPORT_PATH", "PROVENANCE_REGISTRY_TIMEOUT",
+		"PROVENANCE_REPORT_UPLOAD_URL", "PROVENANCE_REPORT_UPLOAD_TIMEOUT",
 	} {
 		t.Setenv(key, "")
 	}
@@ -27,8 +28,11 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.CheckUpdates != true {
 		t.Error("expected CheckUpdates=true by default")
 	}
-	if cfg.ReportOutput != "pvc" {
-		t.Errorf("expected ReportOutput=pvc, got %s", cfg.ReportOutput)
+	if cfg.ReportOutput != "http" {
+		t.Errorf("expected ReportOutput=http, got %s", cfg.ReportOutput)
+	}
+	if cfg.ReportUploadTimeout != 30*time.Second {
+		t.Errorf("expected ReportUploadTimeout=30s, got %s", cfg.ReportUploadTimeout)
 	}
 	if cfg.ReportPath != "/reports" {
 		t.Errorf("expected ReportPath=/reports, got %s", cfg.ReportPath)

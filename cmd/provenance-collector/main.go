@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -161,9 +162,17 @@ func run(ctx context.Context) error {
 	case "configmap":
 		slog.Info("writing report to configmap", "name", cfg.ReportConfigMap, "namespace", cfg.ReportConfigMapNamespace)
 		writer = report.NewConfigMapWriter(client, cfg.ReportConfigMap, cfg.ReportConfigMapNamespace)
-	default:
+	case "pvc":
 		slog.Info("writing report to filesystem", "path", cfg.ReportPath, "retention", cfg.ReportRetention)
 		writer = report.NewPVCWriter(cfg.ReportPath, cfg.ReportRetention)
+	case "http", "":
+		if cfg.ReportUploadURL == "" {
+			return fmt.Errorf("PROVENANCE_REPORT_UPLOAD_URL is required when PROVENANCE_REPORT_OUTPUT=http")
+		}
+		slog.Info("uploading report to dashboard", "url", cfg.ReportUploadURL, "timeout", cfg.ReportUploadTimeout)
+		writer = report.NewHTTPWriter(cfg.ReportUploadURL, cfg.ReportUploadTimeout)
+	default:
+		return fmt.Errorf("unknown PROVENANCE_REPORT_OUTPUT %q (expected http, pvc, or configmap)", cfg.ReportOutput)
 	}
 
 	if err := writer.Write(ctx, provReport); err != nil {

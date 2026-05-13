@@ -30,16 +30,23 @@ type Config struct {
 	CheckSBOM bool
 	// Whether to check for SLSA provenance attestations on images.
 	CheckProvenance bool
-	// Report output type: "pvc" or "configmap".
+	// Report output type: "http" (POST to dashboard), "pvc" (write to local
+	// filesystem on a shared PVC), or "configmap".
 	ReportOutput string
 	// File path for PVC-based report output.
 	ReportPath string
 	// How long to keep old reports. Negative means keep forever.
+	// In http mode this is consumed by the dashboard, not the collector.
 	ReportRetention time.Duration
 	// ConfigMap name for configmap-based report output.
 	ReportConfigMap string
 	// Namespace for ConfigMap report output.
 	ReportConfigMapNamespace string
+	// Upload URL used in http mode (full URL including path, e.g.
+	// http://provenance-web-internal.namespace.svc:8081/internal/reports).
+	ReportUploadURL string
+	// Timeout for the upload request in http mode.
+	ReportUploadTimeout time.Duration
 	// Timeout for registry operations.
 	RegistryTimeout time.Duration
 	// Path to kubeconfig (empty = in-cluster).
@@ -62,11 +69,13 @@ func Load() *Config {
 		UpdateLevel:              envDefault("PROVENANCE_UPDATE_LEVEL", "patch"),
 		CheckSBOM:                envBool("PROVENANCE_CHECK_SBOM", true),
 		CheckProvenance:          envBool("PROVENANCE_CHECK_PROVENANCE", true),
-		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
+		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "http"),
 		ReportPath:               envDefault("PROVENANCE_REPORT_PATH", "/reports"),
 		ReportRetention:          envDuration("PROVENANCE_REPORT_RETENTION", 7*24*time.Hour),
 		ReportConfigMap:          envDefault("PROVENANCE_REPORT_CONFIGMAP", "provenance-report"),
 		ReportConfigMapNamespace: envDefault("PROVENANCE_REPORT_CONFIGMAP_NAMESPACE", "default"),
+		ReportUploadURL:          os.Getenv("PROVENANCE_REPORT_UPLOAD_URL"),
+		ReportUploadTimeout:      envDuration("PROVENANCE_REPORT_UPLOAD_TIMEOUT", 30*time.Second),
 		RegistryTimeout:          envDuration("PROVENANCE_REGISTRY_TIMEOUT", 30*time.Second),
 		Kubeconfig:               os.Getenv("KUBECONFIG"),
 		ClusterName:              os.Getenv("PROVENANCE_CLUSTER_NAME"),

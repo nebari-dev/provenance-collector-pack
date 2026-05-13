@@ -19,8 +19,8 @@ deploy: build-load
 		--set image.repository=provenance-collector \
 		--set image.tag=dev \
 		--set image.pullPolicy=Never \
-		--set config.reportOutput=configmap \
-		--set persistence.enabled=false \
+		--set persistence.mode=configmap \
+		--set webUI.enabled=false \
 		--set config.verifySignatures=false \
 		--set config.checkUpdates=false
 
