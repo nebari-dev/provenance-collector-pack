@@ -70,6 +70,17 @@ webUI:
     limits:
       cpu: 200m
       memory: 128Mi
+  # OIDC issuer URL used by the dashboard to validate forwarded bearer tokens
+  # and look up the user's groups via the issuer's /userinfo endpoint. Required
+  # for the "Run Scan" button to be visible; leave empty to disable.
+  # Example (Nebari in-cluster Keycloak):
+  #   http://keycloak-keycloakx-http.keycloak.svc.cluster.local:8080/realms/nebari
+  oidcIssuer: ""
+  # Keycloak groups whose members are allowed to trigger a manual scan from the
+  # web UI. Empty disables the "Run Scan" button entirely. Group matching is
+  # exact and case-sensitive; use the same form Keycloak returns in the token
+  # (typically with a leading "/").
+  adminGroups: []
 
 # =============================================================================
 # Persistence (PVC for report storage)
@@ -145,6 +156,10 @@ nebariapp:
       - email
       - groups
     groups: []
+    # Forward the user's access token to the dashboard as
+    # `Authorization: Bearer <token>`. Required when webUI.adminGroups is set
+    # so the dashboard can resolve group membership from the token's issuer.
+    forwardAccessToken: false
   landingPage:
     enabled: false
     displayName: "Provenance Collector"
