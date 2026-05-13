@@ -9,13 +9,35 @@ on:
       - "go.mod"
       - "go.sum"
       - "Dockerfile"
+      - ".github/workflows/build-image.yaml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile"
+      - ".github/workflows/build-image.yaml"
   release:
     types: [published]
   workflow_dispatch:
 
+# Cancel in-flight PR builds when a new commit lands on the same PR; leave
+# `main` pushes and releases alone so we never lose a release artifact mid-run.
+concurrency:
+  group: build-image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Fork PRs can't read QUAY_USERNAME/QUAY_PASSWORD secrets and would fail at
+    # the login step. Skip them entirely; the Test/lint workflows still verify
+    # the Dockerfile builds via `docker build` in the integration job.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
       packages: write
@@ -49,6 +71,7 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
+            type=ref,event=pr
 
       - name: Extract version
         id: version
