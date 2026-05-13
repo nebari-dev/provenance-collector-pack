@@ -110,10 +110,18 @@ jobs:
           echo ""
           echo "Integration test passed!"
 
-      # Capture screenshots of the web dashboard
+      # Capture screenshots of the web dashboard.
+      # Auto-doc artifact only — runs on push to main (committed back into
+      # docs/screenshots/ by the next step). Skipped on PRs so that a broken
+      # screenshot step does not block code review; UI-touching PRs that want
+      # to preview the render should run this workflow locally or land it and
+      # check the auto-doc commit afterwards.
       - name: Capture dashboard screenshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          npm install -g puppeteer
+          # Install locally rather than globally so the inline node script
+          # below can require('puppeteer') without NODE_PATH gymnastics.
+          npm install puppeteer
           mkdir -p docs/screenshots
 
           node << 'JSEOF'
@@ -161,7 +169,7 @@ jobs:
           fi
 
       - name: Upload screenshots as artifacts
-        if: always()
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: dashboard-screenshots
