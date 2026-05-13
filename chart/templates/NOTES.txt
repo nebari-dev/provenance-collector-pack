@@ -15,9 +15,8 @@ To view the latest report:
   kubectl port-forward -n {{ .Release.Namespace }} \
     svc/{{ include "provenance-collector.fullname" . }}-web {{ .Values.webUI.port }}:{{ .Values.webUI.port }}
 
-  # Or hit the read API directly:
-  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "provenance-collector.fullname" . }}-web -- \
-    wget -qO- http://localhost:{{ .Values.webUI.port }}/api/reports/latest | jq .
+  # In another shell, hit the read API:
+  curl -s http://localhost:{{ .Values.webUI.port }}/api/reports/latest | jq .
 
   Collector uploads land at:
     POST http://{{ include "provenance-collector.fullname" . }}-web-internal.{{ .Release.Namespace }}.svc:{{ .Values.webUI.internalPort }}/internal/reports

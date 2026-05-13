@@ -64,9 +64,8 @@ kubectl port-forward -n provenance-system \
   svc/provenance-collector-web 8080:8080
 # Open http://localhost:8080
 
-# Or fetch the latest JSON directly:
-kubectl exec -n provenance-system deploy/provenance-collector-web -- \
-  wget -qO- http://localhost:8080/api/reports/latest | jq .
+# In another shell, fetch the latest JSON:
+curl -s http://localhost:8080/api/reports/latest | jq .
 
 # persistence.mode=configmap — no dashboard required.
 kubectl get configmap provenance-report \
