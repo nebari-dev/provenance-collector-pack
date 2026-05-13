@@ -156,7 +156,7 @@ func (a *authenticator) fetchUserInfo(ctx context.Context, token string) (*Ident
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return nil, fmt.Errorf("userinfo: %s: %s", resp.Status, body)
