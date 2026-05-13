@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -47,17 +46,29 @@ func (k *k8sScanRunner) HasActiveManualJob(ctx context.Context) (bool, error) {
 		if !ownedBy(j.OwnerReferences, "CronJob", k.cronJob) {
 			continue
 		}
-		// Active counts pods currently running. A freshly created Job may
-		// have Active=0 for a heartbeat before pods spin up, so also treat
-		// a Job with no terminal state as in-flight.
-		if j.Status.Active > 0 {
-			return true, nil
-		}
-		if j.Status.CompletionTime == nil && j.Status.Failed == 0 && j.Status.Succeeded == 0 {
+		if !jobDone(j.Status.Conditions) {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// jobDone reports whether a Job has reached a terminal state. The Job
+// controller writes a Complete or Failed condition exactly once when the
+// Job stops progressing; checking conditions is more reliable than
+// inspecting Active/Succeeded/Failed counters, which all read zero in the
+// brief window between the last pod being collected and the condition being
+// written (and, post-Kubernetes 1.28, CompletionTime is only set on success).
+func jobDone(conds []batchv1.JobCondition) bool {
+	for _, c := range conds {
+		if c.Status != corev1.ConditionTrue {
+			continue
+		}
+		if c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed {
+			return true
+		}
+	}
+	return false
 }
 
 func (k *k8sScanRunner) StartManualScan(ctx context.Context) (string, error) {
@@ -65,13 +76,15 @@ func (k *k8sScanRunner) StartManualScan(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	name := fmt.Sprintf("manual-%d", time.Now().Unix())
 	yes := true
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: k.namespace,
-			Labels:    cj.Spec.JobTemplate.Labels,
+			// GenerateName lets the apiserver pick a unique suffix so two
+			// admin clicks within the same TOCTOU window cannot collide on
+			// the same Job name.
+			GenerateName: "manual-",
+			Namespace:    k.namespace,
+			Labels:       cj.Spec.JobTemplate.Labels,
 			Annotations: map[string]string{
 				// Same annotation `kubectl create job --from=cronjob/...` sets.
 				"cronjob.kubernetes.io/instantiate": "manual",
@@ -113,6 +126,18 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// CSRF defense. With forwardAccessToken on, the gateway injects the
+	// bearer from the user's session cookie on every upstream request, so a
+	// cross-origin form POST landing here is already authenticated.
+	// Sec-Fetch-Site is on the browser's forbidden-header list (sites can't
+	// forge it via fetch()/XHR), so requiring `same-origin` blocks the
+	// cross-site case. Fail closed when the header is missing: old browsers
+	// and curl-style clients don't send it, and this endpoint is only meant
+	// to be triggered from the dashboard UI.
+	if r.Header.Get("Sec-Fetch-Site") != "same-origin" {
+		http.Error(w, "cross-origin requests not allowed", http.StatusForbidden)
 		return
 	}
 	if !s.auth.enabled() {

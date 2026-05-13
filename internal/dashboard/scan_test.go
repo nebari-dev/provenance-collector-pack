@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -13,6 +14,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 )
+
+// scanReq builds a same-origin POST to /api/scan with an optional bearer.
+// All /api/scan tests must go through this so they pass the CSRF gate.
+func scanReq(bearer string) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	return req
+}
 
 const (
 	testNamespace = "provenance-system"
@@ -97,7 +109,31 @@ func TestHasActiveManualJob(t *testing.T) {
 				Controller: &yes,
 			}},
 		},
-		Status: batchv1.JobStatus{Succeeded: 1, CompletionTime: &metav1.Time{}},
+		Status: batchv1.JobStatus{
+			Succeeded:      1,
+			CompletionTime: &metav1.Time{},
+			Conditions: []batchv1.JobCondition{
+				{Type: batchv1.JobComplete, Status: corev1.ConditionTrue},
+			},
+		},
+	}
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "manual-98",
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "batch/v1", Kind: "CronJob", Name: testCronName, UID: "cj-uid-1",
+				Controller: &yes,
+			}},
+		},
+		// Mirrors what the Job controller writes when backoffLimit is
+		// exhausted: Failed > 0, no CompletionTime, but a Failed condition.
+		Status: batchv1.JobStatus{
+			Failed: 3,
+			Conditions: []batchv1.JobCondition{
+				{Type: batchv1.JobFailed, Status: corev1.ConditionTrue},
+			},
+		},
 	}
 
 	t.Run("active", func(t *testing.T) {
@@ -121,6 +157,18 @@ func TestHasActiveManualJob(t *testing.T) {
 		}
 		if got {
 			t.Error("expected HasActiveManualJob=false when only completed job exists")
+		}
+	})
+
+	t.Run("only failed", func(t *testing.T) {
+		c := fake.NewClientset(makeCronJob(), failedJob)
+		runner := NewK8sScanRunner(c, testNamespace, testCronName)
+		got, err := runner.HasActiveManualJob(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got {
+			t.Error("expected HasActiveManualJob=false when only hard-failed job exists (regression guard for the heuristic that ignored Failed conditions)")
 		}
 	})
 
@@ -181,9 +229,8 @@ func TestScan_RequiresPOST(t *testing.T) {
 
 func TestScan_AuthDisabled(t *testing.T) {
 	srv := NewServer(t.TempDir()) // no auth wired
-	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.ServeHTTP(w, scanReq(""))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("expected 503 with no auth configured, got %d", w.Code)
 	}
@@ -198,10 +245,8 @@ func TestScan_NoRunner(t *testing.T) {
 		WithAuth(AuthConfig{IssuerURL: stub.URL, AdminGroups: []string{"/admins"}})
 	// note: no WithScanRunner
 
-	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
-	req.Header.Set("Authorization", "Bearer admin")
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.ServeHTTP(w, scanReq("admin"))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("expected 503 with no runner wired, got %d", w.Code)
 	}
@@ -210,10 +255,8 @@ func TestScan_NoRunner(t *testing.T) {
 func TestScan_Forbidden(t *testing.T) {
 	runner := &fakeRunner{startName: "manual-1"}
 	srv := newAdminSrv(t, runner)
-	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
-	req.Header.Set("Authorization", "Bearer user") // non-admin
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.ServeHTTP(w, scanReq("user")) // non-admin token
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403 for non-admin, got %d", w.Code)
 	}
@@ -224,21 +267,48 @@ func TestScan_Forbidden(t *testing.T) {
 
 func TestScan_NoBearer(t *testing.T) {
 	srv := newAdminSrv(t, &fakeRunner{startName: "manual-1"})
-	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.ServeHTTP(w, scanReq(""))
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403 when no bearer is supplied, got %d", w.Code)
+	}
+}
+
+func TestScan_CSRF(t *testing.T) {
+	srv := newAdminSrv(t, &fakeRunner{startName: "manual-1"})
+
+	cases := map[string]string{
+		"missing":    "",
+		"cross-site": "cross-site",
+		"same-site":  "same-site",
+		"none":       "none",
+	}
+	for name, site := range cases {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
+			if site != "" {
+				req.Header.Set("Sec-Fetch-Site", site)
+			}
+			// Use a valid admin bearer so we know the rejection is from the
+			// CSRF gate and not from a missing identity.
+			req.Header.Set("Authorization", "Bearer admin")
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+			if w.Code != http.StatusForbidden {
+				t.Errorf("expected 403 for Sec-Fetch-Site=%q, got %d", site, w.Code)
+			}
+			if !strings.Contains(w.Body.String(), "cross-origin") {
+				t.Errorf("expected CSRF rejection body, got %q", w.Body.String())
+			}
+		})
 	}
 }
 
 func TestScan_Conflict(t *testing.T) {
 	runner := &fakeRunner{active: true, startName: "manual-1"}
 	srv := newAdminSrv(t, runner)
-	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
-	req.Header.Set("Authorization", "Bearer admin")
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.ServeHTTP(w, scanReq("admin"))
 	if w.Code != http.StatusConflict {
 		t.Errorf("expected 409 when a job is already active, got %d", w.Code)
 	}
@@ -250,10 +320,8 @@ func TestScan_Conflict(t *testing.T) {
 func TestScan_Success(t *testing.T) {
 	runner := &fakeRunner{startName: "manual-42"}
 	srv := newAdminSrv(t, runner)
-	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
-	req.Header.Set("Authorization", "Bearer admin")
 	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
+	srv.ServeHTTP(w, scanReq("admin"))
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
 	}
