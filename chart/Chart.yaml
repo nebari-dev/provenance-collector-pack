@@ -7,9 +7,9 @@ description: >-
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-home: https://github.com/nebari-dev/provenance-collector
+home: https://github.com/nebari-dev/nebari-provenance-collector-pack
 sources:
-  - https://github.com/nebari-dev/provenance-collector
+  - https://github.com/nebari-dev/nebari-provenance-collector-pack
 maintainers:
   - name: nebari-dev
     url: https://github.com/nebari-dev
