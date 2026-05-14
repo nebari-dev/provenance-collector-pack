@@ -97,4 +97,47 @@ test.describe('Run Scan button visibility', () => {
     await expect(page.locator('#btn-scan')).toContainText(/scan running/i, { timeout: 5_000 });
     expect(scanPosts).toBe(1);
   });
+
+  // Stale-permission path: /api/me said the user could scan when the page
+  // loaded, but /api/scan now returns 403 — for example because the user was
+  // removed from the admin group in the interim. The handler must surface an
+  // error toast and restore the button to its idle state so the click isn't
+  // silently swallowed and the button isn't stuck in a fake "Scan running"
+  // label.
+  test('403 on click surfaces an error toast and resets the button', async ({ page }) => {
+    await mockMe(page, {
+      authEnabled: true,
+      email: 'admin@example.com',
+      groups: ['provenance-admins'],
+      canRunScan: true,
+    });
+
+    await page.route('**/api/scan', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 403,
+          contentType: 'text/plain',
+          body: 'forbidden',
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+    const btn = page.locator('#btn-scan');
+    await btn.click();
+
+    // An error toast appears in #toast-wrap with the "Scan request failed"
+    // title and a sub-line that includes the upstream 403.
+    const toast = page.locator('#toast-wrap .toast.error', { hasText: 'Scan request failed' });
+    await expect(toast).toBeVisible({ timeout: 5_000 });
+    await expect(toast).toContainText('403');
+
+    // Button must be back to idle: enabled, label "Run Scan", and never
+    // stuck on "Scan running".
+    await expect(btn).toBeEnabled();
+    await expect(btn).toContainText('Run Scan');
+    await expect(btn).not.toContainText(/scan running/i);
+  });
 });
