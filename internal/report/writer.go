@@ -132,7 +132,7 @@ func (w *HTTPWriter) Write(ctx context.Context, report *ProvenanceReport) error 
 	if err != nil {
 		return fmt.Errorf("uploading report to %s: %w", w.uploadURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
