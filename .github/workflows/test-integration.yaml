@@ -177,13 +177,19 @@ jobs:
           TIMELINE_NEW_IMAGE: busybox
         run: npx playwright test --reporter=list
 
-      - name: Upload Playwright report on failure
-        if: failure()
+      # Always upload — videos and traces are recorded on every run, not just
+      # on failure, so reviewers can see what the bot actually saw without
+      # having to re-run anything locally.
+      - name: Upload Playwright artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: test/e2e/playwright-report
+          name: playwright-artifacts
+          path: |
+            test/e2e/playwright-report
+            test/e2e/test-results
           if-no-files-found: ignore
+          retention-days: 14
 
       # Capture screenshots of the web dashboard.
       # Auto-doc artifact only — runs on push to main (committed back into
