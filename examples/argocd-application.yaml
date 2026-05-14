@@ -22,7 +22,9 @@ spec:
           verifySignatures: true
           helmEnabled: true
           checkUpdates: true
-          reportOutput: pvc
+
+        persistence:
+          mode: http  # http | pvc | configmap (see chart/values.yaml)
 
         webUI:
           enabled: true

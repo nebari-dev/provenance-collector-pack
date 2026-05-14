@@ -15,18 +15,39 @@ import (
 // Server serves the provenance dashboard web UI.
 type Server struct {
 	reportsDir string
+	auth       *authenticator
+	scan       ScanRunner
 	mux        *http.ServeMux
 }
 
 // NewServer creates a dashboard HTTP handler that reads reports from reportsDir.
+// Authorization is disabled until WithAuth is called with a non-empty issuer.
+// The scan endpoint is disabled until WithScanRunner is called with a runner.
 func NewServer(reportsDir string) *Server {
 	s := &Server{reportsDir: reportsDir}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/reports", s.handleListReports)
 	mux.HandleFunc("/api/reports/", s.handleGetReport)
+	mux.HandleFunc("/api/me", s.handleMe)
+	mux.HandleFunc("/api/scan", s.handleScan)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	s.mux = mux
+	return s
+}
+
+// WithAuth attaches an OIDC authorization config. Passing a config with an
+// empty IssuerURL or AdminGroups leaves authorization disabled — /api/me
+// will still respond, but always with canRunScan=false.
+func (s *Server) WithAuth(cfg AuthConfig) *Server {
+	s.auth = newAuthenticator(cfg)
+	return s
+}
+
+// WithScanRunner attaches the runner used by /api/scan to create one-shot
+// Jobs. When unset, /api/scan responds with 503.
+func (s *Server) WithScanRunner(r ScanRunner) *Server {
+	s.scan = r
 	return s
 }
 
@@ -119,4 +140,26 @@ func (s *Server) loadReport(filename string) (*report.ProvenanceReport, error) {
 func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(indexHTML))
+}
+
+// meResponse is the JSON shape returned by /api/me.
+type meResponse struct {
+	AuthEnabled bool     `json:"authEnabled"`
+	Email       string   `json:"email,omitempty"`
+	Groups      []string `json:"groups,omitempty"`
+	CanRunScan  bool     `json:"canRunScan"`
+}
+
+func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
+	id := s.auth.identify(r.Context(), r)
+	resp := meResponse{
+		AuthEnabled: s.auth.enabled(),
+		CanRunScan:  s.auth.canRunScan(id),
+	}
+	if id != nil {
+		resp.Email = id.Email
+		resp.Groups = id.Groups
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
 }

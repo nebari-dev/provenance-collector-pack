@@ -142,6 +142,21 @@ const indexHTML = `<!DOCTYPE html>
   .detail-status-text { font-size: 12px; }
   .detail-status-text .sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
 
+  /* Run Scan button */
+  .btn-scan { background: var(--purple-bg); border: 1px solid var(--purple-dark); border-radius: var(--radius-sm); padding: 5px 12px; color: var(--purple); font-size: 12px; font-family: var(--font); font-weight: 500; cursor: pointer; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-scan:hover:not(:disabled) { background: var(--purple-dark); color: white; }
+  .btn-scan:disabled { opacity: 0.5; cursor: progress; }
+  .btn-scan .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 6px rgba(167,139,250,0.6); }
+  .btn-scan:hover:not(:disabled) .dot { background: white; box-shadow: 0 0 6px rgba(255,255,255,0.6); }
+
+  /* Toast */
+  .toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+  .toast { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; color: var(--text); box-shadow: 0 4px 12px rgba(0,0,0,0.4); animation: slidein 0.2s ease; }
+  .toast.error { border-left-color: var(--red); }
+  .toast.success { border-left-color: var(--green); }
+  .toast .sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+  @keyframes slidein { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
   /* Misc */
   .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
   .empty p { margin-top: 4px; font-size: 12px; }
@@ -164,6 +179,9 @@ const indexHTML = `<!DOCTYPE html>
     <div class="nav-meta">
       <span id="cluster-name"></span>
       <span id="last-updated"></span>
+      <button id="btn-scan" class="btn-scan" style="display:none" onclick="runScan()" title="Trigger a manual provenance scan">
+        <span class="dot"></span><span>Run Scan</span>
+      </button>
     </div>
   </div>
 </nav>
@@ -196,6 +214,8 @@ const indexHTML = `<!DOCTYPE html>
   </div>
 </div>
 
+<div class="toast-wrap" id="toast-wrap"></div>
+
 <div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
 <div class="detail-panel" id="detail-panel">
   <button class="detail-close" onclick="closeDetail()">&times;</button>
@@ -214,6 +234,7 @@ let currentPage = 0;
 let lastFilteredImages = [];
 
 async function init() {
+  initAuth();
   try {
     const res = await fetch('/api/reports');
     reports = await res.json();
@@ -223,6 +244,95 @@ async function init() {
   } catch (e) {
     document.getElementById('stats').innerHTML = '<div class="empty"><p>Failed to load reports</p></div>';
   }
+}
+
+// initAuth resolves whether the calling user may trigger a scan and shows
+// the Run Scan button if so. Fail-quiet: if /api/me errors, the button stays
+// hidden — better silent than wrongly inviting non-admins to a 403.
+async function initAuth() {
+  try {
+    const res = await fetch('/api/me');
+    if (!res.ok) return;
+    const me = await res.json();
+    if (me && me.canRunScan) {
+      document.getElementById('btn-scan').style.display = 'inline-flex';
+    }
+  } catch (e) { /* keep button hidden */ }
+}
+
+let scanPollTimer = null;
+const SCAN_POLL_MS = 5000;
+const SCAN_POLL_MAX = 60; // 5 minutes worst case
+
+async function runScan() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true;
+  btn.querySelector('span:last-child').textContent = 'Starting...';
+  try {
+    const res = await fetch('/api/scan', { method: 'POST' });
+    const text = await res.text();
+    if (!res.ok) {
+      showToast('error', 'Scan request failed', res.status + ' ' + (text || res.statusText));
+      return;
+    }
+    let body = {};
+    try { body = JSON.parse(text); } catch (e) {}
+    showToast('success', 'Scan started', body.jobName ? 'Job: ' + body.jobName : '');
+    btn.querySelector('span:last-child').textContent = 'Scan running';
+    pollForNewReport();
+  } catch (e) {
+    showToast('error', 'Scan request failed', String(e));
+  } finally {
+    // Re-enable after the poller decides we're done; until then keep disabled.
+    if (!scanPollTimer) {
+      btn.disabled = false;
+      btn.querySelector('span:last-child').textContent = 'Run Scan';
+    }
+  }
+}
+
+function pollForNewReport() {
+  const baselineCount = reports.length;
+  let ticks = 0;
+  const tick = async () => {
+    ticks++;
+    try {
+      const res = await fetch('/api/reports');
+      const latest = await res.json();
+      if (latest && latest.length > baselineCount) {
+        // New report landed — refresh UI and stop polling.
+        reports = latest;
+        renderTimeline();
+        await loadReport(reports[0].filename);
+        showToast('success', 'New report available', reports[0].filename);
+        finishScanPolling();
+        return;
+      }
+    } catch (e) { /* keep polling */ }
+    if (ticks >= SCAN_POLL_MAX) {
+      showToast('error', 'Scan still running', 'Stopped watching after ' + (SCAN_POLL_MAX * SCAN_POLL_MS / 60000) + ' min — refresh later');
+      finishScanPolling();
+      return;
+    }
+    scanPollTimer = setTimeout(tick, SCAN_POLL_MS);
+  };
+  scanPollTimer = setTimeout(tick, SCAN_POLL_MS);
+}
+
+function finishScanPolling() {
+  if (scanPollTimer) { clearTimeout(scanPollTimer); scanPollTimer = null; }
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = false;
+  btn.querySelector('span:last-child').textContent = 'Run Scan';
+}
+
+function showToast(kind, title, sub) {
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || '');
+  el.innerHTML = '<div>' + esc(title) + '</div>' + (sub ? '<div class="sub">' + esc(sub) + '</div>' : '');
+  wrap.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 6000);
 }
 
 function showEmpty() {

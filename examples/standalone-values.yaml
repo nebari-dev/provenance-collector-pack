@@ -15,16 +15,19 @@ config:
   verifySignatures: true
   helmEnabled: true
   checkUpdates: true
-  # Write reports to PVC.
-  reportOutput: pvc
   reportPath: /reports
   clusterName: my-cluster
 
 persistence:
-  enabled: true
+  # http: collector POSTs reports to the dashboard's internal endpoint.
+  # The dashboard owns the PVC; no shared volume between pods. Works on
+  # ReadWriteOnce storage classes like Hetzner csi.hetzner.cloud.
+  mode: http
+  storageClass: ""  # Optional, but recommended (uses the cluster default if empty).
   size: 1Gi
 
-# Enable the web dashboard (accessible via port-forward).
+# webUI is required in http mode — it hosts both the read API/UI and the
+# internal upload endpoint the collector POSTs to.
 webUI:
   enabled: true
 

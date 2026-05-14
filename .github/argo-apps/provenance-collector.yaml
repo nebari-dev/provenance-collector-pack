@@ -17,13 +17,11 @@ spec:
           tag: test
           pullPolicy: Never
         config:
-          reportOutput: pvc
-          reportConfigMap: provenance-report
           verifySignatures: false
           checkUpdates: false
           helmEnabled: true
         persistence:
-          enabled: true
+          mode: http
         webUI:
           enabled: true
   destination:

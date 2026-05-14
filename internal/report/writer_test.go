@@ -3,6 +3,9 @@ package report
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -141,6 +144,65 @@ func TestPVCWriter_RetentionKeepsLatest(t *testing.T) {
 	// provenance-latest.json is rewritten by Write, so it'll exist with new content
 	if _, err := os.Stat(latestFile); err != nil {
 		t.Error("expected provenance-latest.json to exist")
+	}
+}
+
+func TestHTTPWriter_Success(t *testing.T) {
+	var gotBody []byte
+	var gotContentType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/internal/reports" {
+			t.Errorf("expected /internal/reports, got %s", r.URL.Path)
+		}
+		gotContentType = r.Header.Get("Content-Type")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	writer := NewHTTPWriter(srv.URL+"/internal/reports", time.Second)
+	if err := writer.Write(context.Background(), testReport()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotContentType != "application/json" {
+		t.Errorf("expected application/json, got %s", gotContentType)
+	}
+	var report ProvenanceReport
+	if err := json.Unmarshal(gotBody, &report); err != nil {
+		t.Fatalf("upload body is not valid JSON: %v", err)
+	}
+	if report.Metadata.ClusterName != "test-cluster" {
+		t.Errorf("expected cluster name test-cluster, got %s", report.Metadata.ClusterName)
+	}
+}
+
+func TestHTTPWriter_NonSuccessStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	defer srv.Close()
+
+	writer := NewHTTPWriter(srv.URL+"/internal/reports", time.Second)
+	err := writer.Write(context.Background(), testReport())
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestHTTPWriter_Unreachable(t *testing.T) {
+	// Closed server — connection should fail.
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL + "/internal/reports"
+	srv.Close()
+
+	writer := NewHTTPWriter(url, 200*time.Millisecond)
+	if err := writer.Write(context.Background(), testReport()); err == nil {
+		t.Fatal("expected error when upload endpoint is unreachable")
 	}
 }
 
