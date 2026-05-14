@@ -39,11 +39,14 @@ func main() {
 		AdminGroups: splitAndTrim(os.Getenv("PROVENANCE_ADMIN_GROUPS")),
 	}
 
+	manualJobTTL := parseManualJobTTL(os.Getenv("PROVENANCE_MANUAL_JOB_TTL"))
+
 	slog.Info("configuration loaded",
 		"addr", addr,
 		"reportsDir", reportsDir,
 		"authIssuer", authCfg.IssuerURL,
 		"adminGroups", len(authCfg.AdminGroups),
+		"manualJobTTL", manualJobTTL.String(),
 	)
 
 	srv := dashboard.NewServer(reportsDir).WithAuth(authCfg)
@@ -54,7 +57,7 @@ func main() {
 	namespace := os.Getenv("PROVENANCE_NAMESPACE")
 	cronJobName := os.Getenv("PROVENANCE_CRONJOB_NAME")
 	if namespace != "" && cronJobName != "" {
-		if runner, err := buildScanRunner(namespace, cronJobName); err != nil {
+		if runner, err := buildScanRunner(namespace, cronJobName, manualJobTTL); err != nil {
 			slog.Warn("scan endpoint disabled: kubernetes client unavailable",
 				"namespace", namespace, "cronJob", cronJobName, "error", err)
 		} else {
@@ -93,7 +96,7 @@ func main() {
 	}
 }
 
-func buildScanRunner(namespace, cronJobName string) (dashboard.ScanRunner, error) {
+func buildScanRunner(namespace, cronJobName string, manualJobTTL time.Duration) (dashboard.ScanRunner, error) {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -102,7 +105,26 @@ func buildScanRunner(namespace, cronJobName string) (dashboard.ScanRunner, error
 	if err != nil {
 		return nil, err
 	}
-	return dashboard.NewK8sScanRunner(client, namespace, cronJobName), nil
+	return dashboard.NewK8sScanRunner(client, namespace, cronJobName, manualJobTTL), nil
+}
+
+// parseManualJobTTL reads the PROVENANCE_MANUAL_JOB_TTL env var.
+// Empty / unparseable values fall back to DefaultManualJobTTL.
+// Set the value to "0" (or any zero-duration string) to disable the TTL
+// entirely so manual Jobs persist until manually deleted.
+func parseManualJobTTL(v string) time.Duration {
+	if v == "" {
+		return dashboard.DefaultManualJobTTL
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		slog.Warn("invalid PROVENANCE_MANUAL_JOB_TTL, using default", "value", v, "error", err)
+		return dashboard.DefaultManualJobTTL
+	}
+	if d < 0 {
+		return 0
+	}
+	return d
 }
 
 func splitAndTrim(s string) []string {
