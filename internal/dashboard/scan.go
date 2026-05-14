@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,18 +24,34 @@ type ScanRunner interface {
 	StartManualScan(ctx context.Context) (string, error)
 }
 
+// DefaultManualJobTTL is the fallback TTL applied to manual Jobs when no
+// explicit value is configured. The report itself is the durable artifact
+// (stored on the dashboard's PVC with its own retention); the Job object
+// only needs to live long enough for an operator to inspect pod logs after
+// a failure.
+const DefaultManualJobTTL = time.Hour
+
 // k8sScanRunner is the production ScanRunner: it talks to a real apiserver
 // via client-go to inspect and create Jobs from a specific CronJob.
 type k8sScanRunner struct {
-	client    kubernetes.Interface
-	namespace string
-	cronJob   string
+	client       kubernetes.Interface
+	namespace    string
+	cronJob      string
+	manualJobTTL time.Duration // 0 disables TTL on manual Jobs entirely
 }
 
 // NewK8sScanRunner builds a ScanRunner backed by the provided clientset.
 // Exported so cmd/dashboard can wire it from an in-cluster config.
-func NewK8sScanRunner(client kubernetes.Interface, namespace, cronJob string) ScanRunner {
-	return &k8sScanRunner{client: client, namespace: namespace, cronJob: cronJob}
+// manualJobTTL controls Spec.TTLSecondsAfterFinished on created Jobs;
+// pass 0 to skip setting the field (Job persists until namespace teardown
+// or manual deletion).
+func NewK8sScanRunner(client kubernetes.Interface, namespace, cronJob string, manualJobTTL time.Duration) ScanRunner {
+	return &k8sScanRunner{
+		client:       client,
+		namespace:    namespace,
+		cronJob:      cronJob,
+		manualJobTTL: manualJobTTL,
+	}
 }
 
 func (k *k8sScanRunner) HasActiveManualJob(ctx context.Context) (bool, error) {
@@ -77,6 +94,15 @@ func (k *k8sScanRunner) StartManualScan(ctx context.Context) (string, error) {
 		return "", err
 	}
 	yes := true
+	spec := cj.Spec.JobTemplate.Spec
+	// Scheduled runs are pruned by successfulJobsHistoryLimit, but manual
+	// runs aren't tracked there and would otherwise pile up indefinitely.
+	// Override whatever TTL the CronJob's jobTemplate may carry (operators
+	// who want the Jobs to stick around can set manualJobTTL=0).
+	if k.manualJobTTL > 0 {
+		ttl := int32(k.manualJobTTL.Seconds())
+		spec.TTLSecondsAfterFinished = &ttl
+	}
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			// GenerateName lets the apiserver pick a unique suffix so two
@@ -98,7 +124,7 @@ func (k *k8sScanRunner) StartManualScan(ctx context.Context) (string, error) {
 				BlockOwnerDeletion: &yes,
 			}},
 		},
-		Spec: cj.Spec.JobTemplate.Spec,
+		Spec: spec,
 	}
 	created, err := k.client.BatchV1().Jobs(k.namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {

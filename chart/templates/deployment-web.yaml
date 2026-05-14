@@ -57,6 +57,12 @@ spec:
             - name: PROVENANCE_ADMIN_GROUPS
               value: {{ join "," . | quote }}
             {{- end }}
+            # Always emitted: "0" disables the TTL (Job persists after
+            # completion) and `with` would treat the YAML zero-value as
+            # falsy and drop the env var, which the Go side reads as
+            # "unset → use default".
+            - name: PROVENANCE_MANUAL_JOB_TTL
+              value: {{ .Values.webUI.manualJobTTL | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.webUI.port }}

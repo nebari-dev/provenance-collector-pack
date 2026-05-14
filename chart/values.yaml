@@ -89,6 +89,12 @@ webUI:
   # exact and case-sensitive; use the same form Keycloak returns in the token
   # (typically with a leading "/").
   adminGroups: []
+  # How long a finished manual scan Job lingers before the TTLAfterFinished
+  # controller deletes it. Manual Jobs aren't tracked by the CronJob's
+  # successfulJobsHistoryLimit, so without a TTL they would accumulate. Use
+  # any Go duration string ("1h", "30m", "24h"). Set to "0" to disable the
+  # TTL and keep manual Jobs around for debugging.
+  manualJobTTL: "1h"
 
 # =============================================================================
 # Persistence (PVC for report storage)

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,8 +28,9 @@ func scanReq(bearer string) *http.Request {
 }
 
 const (
-	testNamespace = "provenance-system"
-	testCronName  = "provenance-collector"
+	testNamespace    = "provenance-system"
+	testCronName     = "provenance-collector"
+	testManualJobTTL = 90 * time.Minute // distinct from DefaultManualJobTTL so tests fail loudly on a regression
 )
 
 func makeCronJob() *batchv1.CronJob {
@@ -61,7 +63,7 @@ func makeCronJob() *batchv1.CronJob {
 
 func TestStartManualScan_CreatesJob(t *testing.T) {
 	client := fake.NewClientset(makeCronJob())
-	runner := NewK8sScanRunner(client, testNamespace, testCronName)
+	runner := NewK8sScanRunner(client, testNamespace, testCronName, testManualJobTTL)
 
 	name, err := runner.StartManualScan(context.Background())
 	if err != nil {
@@ -84,6 +86,29 @@ func TestStartManualScan_CreatesJob(t *testing.T) {
 	}
 	if len(job.Spec.Template.Spec.Containers) != 1 || job.Spec.Template.Spec.Containers[0].Image != "test/collector:latest" {
 		t.Errorf("job did not inherit CronJob template containers: %+v", job.Spec.Template.Spec.Containers)
+	}
+	if job.Spec.TTLSecondsAfterFinished == nil {
+		t.Fatal("expected TTLSecondsAfterFinished to be set on a manual Job")
+	}
+	if got := *job.Spec.TTLSecondsAfterFinished; got != int32(testManualJobTTL.Seconds()) {
+		t.Errorf("expected TTLSecondsAfterFinished=%d, got %d", int32(testManualJobTTL.Seconds()), got)
+	}
+}
+
+func TestStartManualScan_TTLDisabled(t *testing.T) {
+	client := fake.NewClientset(makeCronJob())
+	runner := NewK8sScanRunner(client, testNamespace, testCronName, 0) // 0 = no TTL
+
+	name, err := runner.StartManualScan(context.Background())
+	if err != nil {
+		t.Fatalf("StartManualScan: %v", err)
+	}
+	job, err := client.BatchV1().Jobs(testNamespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get created job: %v", err)
+	}
+	if job.Spec.TTLSecondsAfterFinished != nil {
+		t.Errorf("expected TTLSecondsAfterFinished to be unset when manualJobTTL=0, got %d", *job.Spec.TTLSecondsAfterFinished)
 	}
 }
 
@@ -138,7 +163,7 @@ func TestHasActiveManualJob(t *testing.T) {
 
 	t.Run("active", func(t *testing.T) {
 		c := fake.NewClientset(makeCronJob(), activeJob)
-		runner := NewK8sScanRunner(c, testNamespace, testCronName)
+		runner := NewK8sScanRunner(c, testNamespace, testCronName, testManualJobTTL)
 		got, err := runner.HasActiveManualJob(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -150,7 +175,7 @@ func TestHasActiveManualJob(t *testing.T) {
 
 	t.Run("only completed", func(t *testing.T) {
 		c := fake.NewClientset(makeCronJob(), completedJob)
-		runner := NewK8sScanRunner(c, testNamespace, testCronName)
+		runner := NewK8sScanRunner(c, testNamespace, testCronName, testManualJobTTL)
 		got, err := runner.HasActiveManualJob(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -162,7 +187,7 @@ func TestHasActiveManualJob(t *testing.T) {
 
 	t.Run("only failed", func(t *testing.T) {
 		c := fake.NewClientset(makeCronJob(), failedJob)
-		runner := NewK8sScanRunner(c, testNamespace, testCronName)
+		runner := NewK8sScanRunner(c, testNamespace, testCronName, testManualJobTTL)
 		got, err := runner.HasActiveManualJob(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -177,7 +202,7 @@ func TestHasActiveManualJob(t *testing.T) {
 		foreign.Name = "manual-other"
 		foreign.OwnerReferences[0].Name = "some-other-cronjob"
 		c := fake.NewClientset(makeCronJob(), foreign)
-		runner := NewK8sScanRunner(c, testNamespace, testCronName)
+		runner := NewK8sScanRunner(c, testNamespace, testCronName, testManualJobTTL)
 		got, err := runner.HasActiveManualJob(context.Background())
 		if err != nil {
 			t.Fatal(err)
