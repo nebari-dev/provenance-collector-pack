@@ -13,7 +13,6 @@
 
 name: nebari-provenance-collector-pack
 display_name: Provenance Collector
-description: Kubernetes-native CronJob plus web dashboard that audits running images and Helm releases for digests, signatures, SLSA/SBOM attestations, and registry updates.
 level: alpha
 owner: viniciusdc
 deprecated: false
