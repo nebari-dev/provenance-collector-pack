@@ -1,0 +1,23 @@
+# pack-metadata.yaml
+#
+# Consumed by the Nebari pack dashboard
+# (https://github.com/nebari-dev/software-pack-dashboard), which fetches this
+# file once per hour to render the dashboard row for this pack.
+#
+# Schema:
+#   https://github.com/nebari-dev/software-pack-dashboard/blob/main/schema/pack-metadata.schema.json
+#
+# Validate locally before committing:
+#   pip install check-jsonschema
+#   check-jsonschema --schemafile <path-to>/pack-metadata.schema.json pack-metadata.yaml
+
+name: nebari-provenance-collector-pack
+display_name: Provenance Collector
+level: alpha
+owner: viniciusdc
+deprecated: false
+product_owner: null
+
+nebariapp_integration: full
+scope:
+  standalone-supported: yes

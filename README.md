@@ -8,15 +8,84 @@
   </a>
 </p>
 
-# Provenance Collector
+<h1 align="center">Provenance Collector</h1>
 
-A Kubernetes-native tool that discovers running container images and Helm
-releases, resolves digests, verifies signatures, detects SLSA provenance
-and SBOM attestations, checks for available updates, and generates
-compliance-grade provenance reports.
+<p align="center">
+  <strong>Compliance-grade provenance for every container running on your Nebari cluster.</strong><br />
+  A Kubernetes-native CronJob that discovers running images and Helm releases, resolves digests, verifies
+  signatures, detects SLSA provenance and SBOM attestations, checks for updates, and emits a timestamped JSON
+  report (optionally surfaced via a web dashboard and Grafana).
+</p>
 
-Deployed as a **Kubernetes CronJob** and packaged as a
-[Nebari Software Pack](https://github.com/nebari-dev/nebari-operator).
+<p align="center">
+  <a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/actions/workflows/test.yaml"><img src="https://github.com/nebari-dev/nebari-provenance-collector-pack/actions/workflows/test.yaml/badge.svg" alt="Test"></a>
+  <a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/actions/workflows/lint.yaml"><img src="https://github.com/nebari-dev/nebari-provenance-collector-pack/actions/workflows/lint.yaml/badge.svg" alt="Lint"></a>
+  <a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/actions/workflows/build-image.yaml"><img src="https://github.com/nebari-dev/nebari-provenance-collector-pack/actions/workflows/build-image.yaml/badge.svg" alt="Build Image"></a>
+  <a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-BSD_3--Clause-blue.svg" alt="License"></a>
+  <a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/releases/latest"><img src="https://img.shields.io/github/v/release/nebari-dev/nebari-provenance-collector-pack?logo=github&label=release&include_prereleases" alt="Latest Release"></a>
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
+</p>
+
+<p align="center">
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#web-dashboard">Web Dashboard</a> &middot;
+  <a href="#grafana-integration">Grafana</a> &middot;
+  <a href="#configuration">Configuration</a> &middot;
+  <a href="#report-format">Report Format</a> &middot;
+  <a href="#development">Development</a> &middot;
+  <a href="examples/">Examples</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-overview.png" alt="Provenance Collector dashboard — image inventory with signature, SLSA, SBOM, and update status" width="820">
+</p>
+
+> **Status**: Under active development as part of Nebari Infrastructure Core (NIC). APIs, chart values, and report
+> schema may change without notice while pre-1.0.
+
+## What is the Provenance Collector?
+
+The Provenance Collector is a **Nebari Software Pack** that produces compliance-grade supply-chain reports for
+every container image and Helm release running on a Kubernetes cluster. It is deployed automatically by the
+[Nebari Operator](https://github.com/nebari-dev/nebari-operator) as part of NIC's foundational software, runs on a
+schedule as a `CronJob`, and ships each timestamped JSON report to the built-in web dashboard, a shared PVC, or a
+ConfigMap — whichever `persistence.mode` is set to — so it can be surfaced via the dashboard UI, Grafana,
+audit submissions, or ad-hoc `jq`.
+
+It exists because answering *"what is actually running on this cluster, where did it come from, and is it signed?"*
+should not require manual auditing.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Cron[Kubernetes CronJob<br/>default: daily 06:00 UTC]
+    ImgDisc[Image Discovery<br/>pods + workload owners]
+    HelmDisc[Helm Discovery<br/>via Helm SDK]
+    Enrich[Enrichment<br/>digest resolve · cosign verify<br/>SBOM · SLSA · update check]
+    Report[(JSON Provenance Report)]
+    Dash[Web Dashboard<br/>+ JSON API · owns the PVC]
+    CM[(ConfigMap<br/>persistence.mode=configmap)]
+    PVC[(Shared PVC<br/>persistence.mode=pvc)]
+    Grafana[Grafana<br/>via Infinity datasource]
+
+    Cron --> ImgDisc
+    Cron --> HelmDisc
+    ImgDisc --> Enrich
+    Enrich --> Report
+    HelmDisc --> Report
+    Report -->|HTTP upload, default| Dash
+    Report -.-> CM
+    Report -.-> PVC
+    PVC -.-> Dash
+    Dash --> Grafana
+```
+
+The collector reads the Kubernetes API for inventory and the registry for enrichment, then ships the report to
+the dashboard's internal upload endpoint (default), a ConfigMap, or a shared PVC depending on `persistence.mode`
+(see [Storage modes](#storage-modes)). It does not push to remote services or mutate cluster state outside the
+configured sink.
 
 ## What It Does
 
@@ -35,18 +104,44 @@ Deployed as a **Kubernetes CronJob** and packaged as a
 
 ## Quick Start
 
+> In a full Nebari / NIC deployment the chart is managed by the Nebari Operator and ArgoCD — you do not need to
+> install it manually. See [`examples/`](examples/) for the operator-managed path. The steps below are for
+> standalone clusters and local development.
+
 ### Prerequisites
 
-- Kubernetes cluster (1.26+)
-- Helm 3
-- `kubectl` configured for your cluster
+| Tool | Minimum version | Notes |
+| --- | --- | --- |
+| `kubectl` | 1.26+ | Cluster interaction |
+| `helm` | 3.14+ | Chart install |
+| Kubernetes cluster | 1.26+ | Local (kind / k3d / minikube) or remote |
+| Cluster permissions | `cluster-admin` | Chart creates a `ClusterRole` + `ClusterRoleBinding` |
+| Nebari Operator CRDs | optional | Required only when `nebariapp.enabled=true` (see [docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md)) |
 
 ### Install
 
 ```bash
-helm install provenance-collector chart/ \
+helm repo add nebari https://nebari-dev.github.io/helm-repository
+helm repo update
+
+helm install provenance-collector nebari/provenance-collector \
   --namespace provenance-system \
   --create-namespace
+```
+
+Or install from a local checkout when iterating on the chart:
+
+```bash
+helm install provenance-collector ./chart \
+  --namespace provenance-system \
+  --create-namespace
+```
+
+### Verify
+
+```bash
+kubectl get cronjob -n provenance-system
+kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-collector
 ```
 
 ### Trigger a Manual Run
@@ -54,6 +149,9 @@ helm install provenance-collector chart/ \
 ```bash
 kubectl create job --from=cronjob/provenance-collector \
   manual-run -n provenance-system
+
+kubectl wait --for=condition=complete job/manual-run \
+  -n provenance-system --timeout=5m
 ```
 
 ### View the Report
@@ -71,6 +169,15 @@ curl -s http://localhost:8080/api/reports/latest | jq .
 kubectl get configmap provenance-report \
   -n provenance-system \
   -o jsonpath='{.data.report\.json}' | jq .
+```
+
+### Uninstall
+
+```bash
+helm uninstall provenance-collector -n provenance-system
+
+# Also remove the namespace (and any PVC-stored reports):
+kubectl delete namespace provenance-system
 ```
 
 ## Storage modes
@@ -155,6 +262,8 @@ plugin, which queries the dashboard's JSON API.
 ```
 WHEN count() OF images WHERE updateAvailable = true IS ABOVE 0
 ```
+
+An example dashboard (11 panels covering unique images, signature status, SLSA provenance, Helm releases, and more) is available at [`examples/grafana-dashboard.json`](examples/grafana-dashboard.json). Import it directly into Grafana as a `dashboard.grafana.app/v2beta1` resource.
 
 See [docs/configuration.md](docs/configuration.md) for the full Grafana setup guide.
 
@@ -271,6 +380,38 @@ nebariapp:
 
 See [examples/](examples/) for complete deployment examples (standalone, Nebari, ArgoCD).
 
+### Nebari integration
+
+Setting `nebariapp.enabled: true` renders a `NebariApp` custom resource that registers the pack with the
+[Nebari Operator](https://github.com/nebari-dev/nebari-operator). The operator wires up routing, OIDC, and
+landing-page registration so the web dashboard is reachable through the Nebari gateway under
+`https://<hostname>` and surfaced on the [Nebari Landing page](https://github.com/nebari-dev/nebari-landing).
+Leave it `false` for clusters that aren't running the operator. Full field reference:
+[docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md).
+
+### Private registries
+
+When images are pulled from a private registry (e.g. Harbor, Artifactory, GHCR with a token), provide a
+`docker-registry` Secret and point the chart at it. The collector will use those credentials for digest resolution,
+signature lookup, SBOM detection, and update checks.
+
+```bash
+kubectl create secret docker-registry harbor-pull-secret \
+  --docker-server=harbor.internal:5000 \
+  --docker-username=robot \
+  --docker-password=*** \
+  -n provenance-system
+```
+
+```yaml
+# values.yaml
+registryCredentials:
+  existingSecret: harbor-pull-secret
+```
+
+Air-gapped clusters and registry mirrors are tracked in
+[#1](https://github.com/nebari-dev/nebari-provenance-collector-pack/issues/1).
+
 ## RBAC
 
 The collector requires cluster-wide read access:
@@ -306,7 +447,8 @@ kind create cluster
 docker build -t provenance-collector:dev .
 kind load docker-image provenance-collector:dev
 
-helm install pc chart/ \
+helm install provenance-collector ./chart \
+  --namespace provenance-system --create-namespace \
   --set image.repository=provenance-collector \
   --set image.tag=dev \
   --set image.pullPolicy=Never \
@@ -314,11 +456,12 @@ helm install pc chart/ \
   --set webUI.enabled=false \
   --set config.verifySignatures=false
 
-kubectl create job --from=cronjob/pc-provenance-collector test-run
-kubectl logs job/test-run
+kubectl create job --from=cronjob/provenance-collector test-run \
+  -n provenance-system
+kubectl logs -n provenance-system job/test-run
 ```
 
-## Architecture
+## Project Structure
 
 ```
 cmd/
@@ -344,7 +487,27 @@ internal/
     writer.go                 HTTP, PVC, and ConfigMap output writers
 chart/                        Helm chart (CronJob + RBAC + Dashboard + NebariApp)
 examples/                     Deployment examples (standalone, Nebari, ArgoCD)
+docs/                         Configuration, report schema, NebariApp CRD reference
 ```
+
+## Contributing
+
+Contributions are welcome.
+
+```bash
+git clone https://github.com/nebari-dev/nebari-provenance-collector-pack.git
+cd nebari-provenance-collector-pack
+
+make build
+make test
+```
+
+- [Open issues](https://github.com/nebari-dev/nebari-provenance-collector-pack/issues) — bug reports, feature
+  requests, and documentation gaps.
+- [Configuration reference](docs/configuration.md) — every env var and its chart value.
+- [Report schema](docs/report-schema.md) — JSON output structure.
+- [NebariApp CRD reference](docs/nebariapp-crd-reference.md) — operator integration fields.
+- [Deployment examples](examples/) — standalone, Nebari, ArgoCD.
 
 ## License
 

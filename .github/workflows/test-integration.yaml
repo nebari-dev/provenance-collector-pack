@@ -127,6 +127,88 @@ jobs:
           echo ""
           echo "Integration test passed!"
 
+      # Timeline scan-switch coverage (#19): deploy a second workload, trigger
+      # another scan, and verify via the dashboard UI that picking each
+      # timeline entry actually swaps the images table — not just the stat cards.
+      - name: Deploy second workload (timeline-switch setup)
+        run: |
+          # busybox needs an explicit command to stay running.
+          kubectl create deployment busybox \
+            --image=busybox:1.36 \
+            -- sh -c 'sleep 3600'
+          kubectl wait --for=condition=available deployment/busybox --timeout=120s
+
+      - name: Run second provenance collection
+        run: |
+          kubectl create job --from=cronjob/provenance-test-provenance-collector test-run-2
+          kubectl wait --for=condition=complete job/test-run-2 --timeout=300s
+
+      - name: Wait for second report to land in the dashboard
+        run: |
+          for i in $(seq 1 20); do
+            COUNT=$(curl -sf http://localhost:8080/api/reports | jq 'length' 2>/dev/null || echo "0")
+            if [ "$COUNT" -ge "2" ]; then
+              echo "Both reports visible (attempt $i, count=$COUNT)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for the second report; current count=$COUNT"
+          curl -sf http://localhost:8080/api/reports | jq .
+          exit 1
+
+      - name: Verify the two reports differ on the busybox image
+        run: |
+          REPORTS=$(curl -sf http://localhost:8080/api/reports)
+          NEWEST=$(echo "$REPORTS" | jq -r '.[0].filename')
+          OLDEST=$(echo "$REPORTS" | jq -r '.[1].filename')
+          echo "Newest: $NEWEST"
+          echo "Oldest: $OLDEST"
+
+          # The reports list is sorted DESC by generatedAt; busybox should be in
+          # the newer one only.
+          NEW_HAS=$(curl -sf "http://localhost:8080/api/reports/$NEWEST" \
+            | jq '[.images[].image] | any(test("busybox"))')
+          OLD_HAS=$(curl -sf "http://localhost:8080/api/reports/$OLDEST" \
+            | jq '[.images[].image] | any(test("busybox"))')
+
+          echo "Newest contains busybox: $NEW_HAS"
+          echo "Oldest contains busybox: $OLD_HAS"
+
+          if [ "$NEW_HAS" != "true" ] || [ "$OLD_HAS" != "false" ]; then
+            echo "API distinctness check failed — the bug cannot be tested if the"
+            echo "two reports don't actually differ on disk."
+            exit 1
+          fi
+
+      - name: Install Playwright
+        working-directory: test/e2e
+        run: |
+          npm init -y > /dev/null
+          npm install --no-save @playwright/test@1.48.2
+          npx playwright install --with-deps chromium
+
+      - name: Run timeline-switch e2e test
+        working-directory: test/e2e
+        env:
+          DASHBOARD_URL: http://localhost:8080
+          TIMELINE_NEW_IMAGE: busybox
+        run: npx playwright test --reporter=list
+
+      # Always upload — videos and traces are recorded on every run, not just
+      # on failure, so reviewers can see what the bot actually saw without
+      # having to re-run anything locally.
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            test/e2e/playwright-report
+            test/e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
       # Capture screenshots of the web dashboard.
       # Auto-doc artifact only — runs on push to main (committed back into
       # docs/screenshots/ by the next step). Skipped on PRs so that a broken
@@ -202,14 +284,19 @@ jobs:
           echo "=== Pods ==="
           kubectl get pods -A
           echo ""
-          echo "=== Job ==="
+          echo "=== Jobs ==="
           kubectl describe job/test-run || true
+          kubectl describe job/test-run-2 || true
           echo ""
           echo "=== Job logs ==="
           kubectl logs job/test-run || true
+          kubectl logs job/test-run-2 || true
           echo ""
           echo "=== Dashboard logs ==="
           kubectl logs deployment/provenance-test-provenance-collector-web || true
+          echo ""
+          echo "=== Reports listing ==="
+          curl -sf http://localhost:8080/api/reports | jq . || true
           echo ""
           echo "=== Events ==="
           kubectl get events --sort-by=.lastTimestamp | tail -30
