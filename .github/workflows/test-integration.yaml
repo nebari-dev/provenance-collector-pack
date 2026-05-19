@@ -46,6 +46,10 @@ jobs:
           docker build --build-arg VERSION=test -t provenance-collector:test .
           k3d image import provenance-collector:test --cluster provenance-test
 
+      # add-software-pack@v1 (>= v1.0.3) waits for the Application CR to exist
+      # and to reach status.health.status=Healthy by default (wait-for-application
+      # and wait-healthy both default true). It also annotates nebari-root for a
+      # refresh internally, so consumers don't need to poll or nudge themselves.
       - name: Register provenance-collector pack
         uses: nebari-dev/action-nebari-sandbox/add-software-pack@v1
         with:
@@ -53,40 +57,6 @@ jobs:
           app-name: provenance-collector
           chart-source: ./chart
           application-manifest: .github/argo-apps/provenance-collector.yaml
-
-      # add-software-pack writes apps/provenance-collector.yaml into the
-      # gitops repo and exits — it does NOT create the Application directly.
-      # The bundled nebari-root App-of-Apps has to re-sync to pick up the new
-      # manifest before the provenance-collector Application exists. Until it
-      # does, `kubectl wait` returns NotFound immediately rather than waiting,
-      # so we have to poll for existence ourselves before waiting for Healthy.
-      # We also annotate nebari-root to force a refresh instead of sitting
-      # through ArgoCD's natural polling interval (~3 min).
-      - name: Wait for ArgoCD to create the application
-        run: |
-          for i in $(seq 1 60); do
-            if kubectl get application provenance-collector -n argocd >/dev/null 2>&1; then
-              echo "Application exists after $((i * 5))s"
-              break
-            fi
-            if [ "$i" = "6" ]; then
-              echo "Nudging nebari-root to refresh..."
-              kubectl annotate -n argocd application/nebari-root \
-                argocd.argoproj.io/refresh=normal --overwrite || true
-            fi
-            if [ "$i" = "60" ]; then
-              echo "Application never appeared; dumping state:"
-              kubectl get application -n argocd -o wide || true
-              kubectl describe application nebari-root -n argocd || true
-              exit 1
-            fi
-            sleep 5
-          done
-
-      - name: Wait for ArgoCD sync
-        run: |
-          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
-            application/provenance-collector -n argocd --timeout=360s
 
       - name: Wait for dashboard
         run: |
