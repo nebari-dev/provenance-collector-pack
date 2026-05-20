@@ -149,10 +149,16 @@ const indexHTML = `<!DOCTYPE html>
   .btn-scan .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 6px rgba(167,139,250,0.6); }
   .btn-scan:hover:not(:disabled) .dot { background: white; box-shadow: 0 0 6px rgba(255,255,255,0.6); }
 
-  /* Export buttons */
-  .export-group { display: flex; gap: 4px; }
-  .export-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-  .export-btn:hover { border-color: var(--purple-dark); color: var(--text); }
+  /* Export menu */
+  .export-menu { position: relative; display: inline-flex; }
+  .export-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+  .export-btn:hover, .export-btn[aria-expanded="true"] { border-color: var(--purple-dark); color: var(--text); }
+  .export-btn .caret { font-size: 9px; transition: transform 0.15s ease; }
+  .export-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
+  .export-popover { position: absolute; top: calc(100% + 4px); right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; min-width: 140px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 150; display: flex; flex-direction: column; gap: 2px; }
+  .export-popover[hidden] { display: none; }
+  .export-item { padding: 6px 10px; font-size: 12px; color: var(--text-secondary); border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.1s ease; }
+  .export-item:hover, .export-item:focus { background: var(--surface-2); color: var(--text); outline: none; }
 
   /* Toast */
   .toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
@@ -184,10 +190,15 @@ const indexHTML = `<!DOCTYPE html>
     <div class="nav-meta">
       <span id="cluster-name"></span>
       <span id="last-updated"></span>
-      <div class="export-group">
-        <a id="export-csv" class="export-btn" href="/api/export?format=csv" download title="Download the selected report as CSV">CSV</a>
-        <a id="export-md" class="export-btn" href="/api/export?format=markdown" download title="Download the selected report as Markdown">MD</a>
-        <a id="export-json" class="export-btn" href="/api/reports/latest" download="provenance-report.json" title="Download the selected report as JSON">JSON</a>
+      <div class="export-menu">
+        <button id="export-toggle" class="export-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-popover" onclick="toggleExportMenu()" title="Download the selected report">
+          <span>Export</span><span class="caret">&#9662;</span>
+        </button>
+        <div id="export-popover" class="export-popover" role="menu" hidden>
+          <a id="export-csv" class="export-item" role="menuitem" href="/api/export?format=csv" download>CSV</a>
+          <a id="export-md" class="export-item" role="menuitem" href="/api/export?format=markdown" download>Markdown</a>
+          <a id="export-json" class="export-item" role="menuitem" href="/api/reports/latest" download="provenance-report.json">JSON</a>
+        </div>
       </div>
       <button id="btn-scan" class="btn-scan" style="display:none" onclick="runScan()" title="Trigger a manual provenance scan">
         <span class="dot"></span><span>Run Scan</span>
@@ -383,8 +394,8 @@ async function loadReport(filename) {
   document.getElementById('cluster-name').textContent = currentReport.metadata.clusterName || '';
 }
 
-// updateExportLinks repoints the nav-bar Export buttons at whichever report is
-// currently being viewed. Without this, the CSV / MD / JSON buttons would
+// updateExportLinks repoints the Export menu items at whichever report is
+// currently being viewed. Without this, the CSV / MD / JSON entries would
 // always export the latest report regardless of the timeline selection.
 function updateExportLinks(filename) {
   const enc = encodeURIComponent(filename);
@@ -395,6 +406,43 @@ function updateExportLinks(filename) {
   if (md) md.href = '/api/export?format=markdown&filename=' + enc;
   if (json) json.href = '/api/reports/' + enc;
 }
+
+// toggleExportMenu opens / closes the Export dropdown. Closing is also wired
+// to outside-clicks and Escape (see the listeners below).
+function toggleExportMenu() {
+  const btn = document.getElementById('export-toggle');
+  const menu = document.getElementById('export-popover');
+  if (!btn || !menu) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  setExportMenuOpen(!open);
+}
+
+function setExportMenuOpen(open) {
+  const btn = document.getElementById('export-toggle');
+  const menu = document.getElementById('export-popover');
+  if (!btn || !menu) return;
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    menu.removeAttribute('hidden');
+  } else {
+    menu.setAttribute('hidden', '');
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const wrap = document.querySelector('.export-menu');
+  if (wrap && !wrap.contains(ev.target)) setExportMenuOpen(false);
+  // Clicking an item should close the popover after the browser starts the
+  // download. The role=menuitem anchors live inside .export-menu so the
+  // outside-click branch above doesn't fire; close explicitly here.
+  if (ev.target && ev.target.classList && ev.target.classList.contains('export-item')) {
+    setExportMenuOpen(false);
+  }
+});
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') setExportMenuOpen(false);
+});
 
 function resetFilters() {
   imageFilters = { search: '', namespace: '', signature: '', sbom: '', provenance: '', update: '' };

@@ -162,7 +162,7 @@ jobs:
           npm install --no-save @playwright/test@1.48.2
           npx playwright install --with-deps chromium
 
-      - name: Run timeline-switch e2e test
+      - name: Run dashboard e2e tests
         working-directory: test/e2e
         env:
           DASHBOARD_URL: http://localhost:8080
