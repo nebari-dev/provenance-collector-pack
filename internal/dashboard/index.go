@@ -149,6 +149,11 @@ const indexHTML = `<!DOCTYPE html>
   .btn-scan .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 6px rgba(167,139,250,0.6); }
   .btn-scan:hover:not(:disabled) .dot { background: white; box-shadow: 0 0 6px rgba(255,255,255,0.6); }
 
+  /* Export buttons */
+  .export-group { display: flex; gap: 4px; }
+  .export-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .export-btn:hover { border-color: var(--purple-dark); color: var(--text); }
+
   /* Toast */
   .toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
   .toast { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; color: var(--text); box-shadow: 0 4px 12px rgba(0,0,0,0.4); animation: slidein 0.2s ease; }
@@ -179,6 +184,11 @@ const indexHTML = `<!DOCTYPE html>
     <div class="nav-meta">
       <span id="cluster-name"></span>
       <span id="last-updated"></span>
+      <div class="export-group">
+        <a id="export-csv" class="export-btn" href="/api/export?format=csv" download title="Download the selected report as CSV">CSV</a>
+        <a id="export-md" class="export-btn" href="/api/export?format=markdown" download title="Download the selected report as Markdown">MD</a>
+        <a id="export-json" class="export-btn" href="/api/reports/latest" download="provenance-report.json" title="Download the selected report as JSON">JSON</a>
+      </div>
       <button id="btn-scan" class="btn-scan" style="display:none" onclick="runScan()" title="Trigger a manual provenance scan">
         <span class="dot"></span><span>Run Scan</span>
       </button>
@@ -367,9 +377,23 @@ async function loadReport(filename) {
   renderFilters(currentReport);
   renderImages(currentReport);
   renderHelm(currentReport);
+  updateExportLinks(filename);
   const d = new Date(currentReport.metadata.generatedAt);
   document.getElementById('last-updated').textContent = d.toLocaleString();
   document.getElementById('cluster-name').textContent = currentReport.metadata.clusterName || '';
+}
+
+// updateExportLinks repoints the nav-bar Export buttons at whichever report is
+// currently being viewed. Without this, the CSV / MD / JSON buttons would
+// always export the latest report regardless of the timeline selection.
+function updateExportLinks(filename) {
+  const enc = encodeURIComponent(filename);
+  const csv = document.getElementById('export-csv');
+  const md = document.getElementById('export-md');
+  const json = document.getElementById('export-json');
+  if (csv) csv.href = '/api/export?format=csv&filename=' + enc;
+  if (md) md.href = '/api/export?format=markdown&filename=' + enc;
+  if (json) json.href = '/api/reports/' + enc;
 }
 
 function resetFilters() {
