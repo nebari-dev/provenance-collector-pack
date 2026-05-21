@@ -79,17 +79,26 @@ const indexHTML = `<!DOCTYPE html>
   }
   .filters select:focus { border-color: var(--purple-dark); box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
   .filter-label { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
-  .filter-reset { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; margin-left: auto; transition: all 0.15s ease; }
+  /* Sits immediately after the last filter with the same 8px flex gap as every
+     other pair — the previous margin-left:auto pushed Clear to the far right
+     of the panel and left an awkward gap after UPDATE on wide screens. */
+  .filter-reset { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; }
   .filter-reset:hover { border-color: var(--purple-dark); color: var(--text); }
 
   /* Tables */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  /* Sticky header — stick below the 52px nav. Black background so rows
+     scrolling under the header don't bleed through the transparent th. */
+  thead th { position: sticky; top: 52px; z-index: 50; background: var(--surface); }
   th { text-align: left; padding: 8px 20px; color: var(--faint); font-weight: 500; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; transition: color 0.15s; }
   th:hover { color: var(--muted); }
   th .sort-arrow { font-size: 9px; margin-left: 3px; }
   td { padding: 8px 20px; border-bottom: 1px solid var(--border); font-size: 12px; }
   tr:last-child td { border-bottom: none; }
   tr:hover { background: rgba(124,58,237,0.04); }
+  /* Workload column truncation — keeps long ReplicaSet/StatefulSet names
+     from wrapping mid-token. Hover the cell to see the full name. */
+  td.workload { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 
   /* Badges */
   .badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; letter-spacing: 0.02em; }
@@ -391,7 +400,9 @@ async function loadReport(filename) {
   updateExportLinks(filename);
   const d = new Date(currentReport.metadata.generatedAt);
   document.getElementById('last-updated').textContent = d.toLocaleString();
-  document.getElementById('cluster-name').textContent = currentReport.metadata.clusterName || '';
+  // Falls back to "Local" when clusterName is unset (typical for standalone /
+  // dev installs) so the header doesn't show a blank slot before the timestamp.
+  document.getElementById('cluster-name').textContent = currentReport.metadata.clusterName || 'Local';
 }
 
 // updateExportLinks repoints the Export menu items at whichever report is
@@ -451,20 +462,41 @@ function resetFilters() {
 
 function renderStats(r) {
   const s = r.summary;
-  const pct = (n) => s.uniqueImages ? Math.round(n / s.uniqueImages * 100) : 0;
-  const pS = pct(s.signedImages), pB = pct(s.imagesWithSBOM), pP = pct(s.imagesWithProvenance || 0);
+  const total = s.uniqueImages || 0;
+
+  // "N of M" everywhere with a denominator. Images and Helm are the absolutes,
+  // the rest are fractions of the unique-image total. Keeps the 0-state from
+  // looking like "0 / 0 / 0 / 0" without context.
+  const ratio = (n) => total ? n + ' / ' + total : String(n);
+
+  // Threshold helper for the four ratio-style cards. Painting red on a "0 of N"
+  // when the cluster has *no* signed/provenance/SBOM artifacts at all is
+  // alarmist — a vanilla cluster pulling public images is expected to be
+  // unsigned. Reserve red for the case where some images carry the attribute
+  // but the overall percentage is poor; otherwise stay muted.
+  const tier = (n, lo, hi) => {
+    if (n === 0) return '';                       // no positive signal — neutral, not "bad"
+    const pct = total ? Math.round(n / total * 100) : 0;
+    if (pct >= hi) return 'green';
+    if (pct >= lo) return 'yellow';
+    return 'red';
+  };
+
   document.getElementById('stats').innerHTML =
-    statCard('all', s.uniqueImages, 'Images', '') +
-    statCard('signed', s.signedImages, 'Signed ' + pS + '%', pS > 80 ? 'green' : pS > 50 ? 'yellow' : 'red') +
-    statCard('verified', s.verifiedImages, 'Verified', s.verifiedImages > 0 ? 'green' : '') +
-    statCard('provenance', s.imagesWithProvenance || 0, 'SLSA ' + pP + '%', pP > 0 ? 'green' : '') +
-    statCard('sbom', s.imagesWithSBOM, 'SBOM ' + pB + '%', pB > 50 ? 'green' : pB > 0 ? 'yellow' : '') +
-    statCard('updates', s.imagesWithUpdates, 'Updates', s.imagesWithUpdates > 0 ? 'yellow' : 'green') +
-    statCard('helm', s.totalHelmReleases, 'Helm', '');
+    statCard('all',        String(s.uniqueImages),               'Images',   '') +
+    statCard('signed',     ratio(s.signedImages),                'Signed',   tier(s.signedImages, 50, 80)) +
+    statCard('verified',   ratio(s.verifiedImages),              'Verified', tier(s.verifiedImages, 50, 80)) +
+    statCard('provenance', ratio(s.imagesWithProvenance || 0),   'SLSA',     tier(s.imagesWithProvenance || 0, 1, 50)) +
+    statCard('sbom',       ratio(s.imagesWithSBOM),              'SBOM',     tier(s.imagesWithSBOM, 1, 50)) +
+    statCard('updates',    ratio(s.imagesWithUpdates),           'Updates',  s.imagesWithUpdates > 0 ? 'yellow' : 'green') +
+    statCard('helm',       String(s.totalHelmReleases),          'Helm',     '');
 }
 
 function statCard(id, value, label, cls) {
-  return '<div class="stat ' + cls + (statFilter === id ? ' active' : '') + '" onclick="toggleStatFilter(\'' + id + '\')" id="stat-' + id + '"><div class="value">' + value + '</div><div class="label">' + label + '</div></div>';
+  const tip = id === 'signed' && value.indexOf('0 /') === 0
+    ? ' title="No signatures found. Common on clusters pulling unsigned public images."'
+    : '';
+  return '<div class="stat ' + cls + (statFilter === id ? ' active' : '') + '" onclick="toggleStatFilter(\'' + id + '\')" id="stat-' + id + '"' + tip + '><div class="value">' + value + '</div><div class="label">' + label + '</div></div>';
 }
 
 function toggleStatFilter(id) {
@@ -612,7 +644,7 @@ function renderImages(r) {
     html += '<tr class="clickable" onclick="openDetailIdx(' + globalIdx + ')">' +
       '<td><span class="mono">' + esc(img.image) + '</span><br>' + digest + '</td>' +
       '<td>' + esc(img.namespace) + '</td>' +
-      '<td style="font-size:11px">' + esc(img.workload.kind) + '/' + esc(img.workload.name) + '</td>' +
+      '<td class="workload" title="' + esc(img.workload.kind + '/' + img.workload.name) + '">' + esc(img.workload.kind) + '/' + esc(img.workload.name) + '</td>' +
       '<td>' + sig + '</td><td>' + prov + '</td><td>' + sbom + '</td><td>' + update + '</td></tr>';
   }
   html += '</tbody></table>';
