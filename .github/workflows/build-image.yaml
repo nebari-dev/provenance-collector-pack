@@ -46,6 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Buildx needs the docker-container driver to attach OCI attestations
+      # (sbom: true, provenance: mode=max). The default docker driver errors
+      # out with "Attestation is not supported for the docker driver."
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
