@@ -69,6 +69,12 @@ webUI:
   internalPort: 8081
   # Max body size (bytes) accepted on the internal upload endpoint.
   uploadMaxBytes: 16777216  # 16 MiB
+  # Opt-in dashboard features. All default off; flip individually.
+  features:
+    # Renders a +N / -N unique-image delta badge on each timeline card,
+    # showing how the report changed vs the previous (older) scan. Useful
+    # once you have enough scan history to notice drift at a glance.
+    timelineDeltas: false
   resources:
     requests:
       cpu: 50m

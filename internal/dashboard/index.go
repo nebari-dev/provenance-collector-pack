@@ -268,9 +268,15 @@ let imageSortAsc = true;
 let pageSize = 25;
 let currentPage = 0;
 let lastFilteredImages = [];
+// Feature flags from /api/me. Defaults are all-off to match the chart's
+// opt-in posture; initConfig() overwrites this with the server's response.
+let features = { timelineDeltas: false };
 
 async function init() {
-  initAuth();
+  // Await the config fetch so renderTimeline() below sees the correct feature
+  // flags on first paint. The call is fast and fail-quiet — defaults stand
+  // if it errors.
+  await initConfig();
   try {
     const res = await fetch('/api/reports');
     reports = await res.json();
@@ -282,10 +288,12 @@ async function init() {
   }
 }
 
-// initAuth resolves whether the calling user may trigger a scan and shows
-// the Run Scan button if so. Fail-quiet: if /api/me errors, the button stays
-// hidden — better silent than wrongly inviting non-admins to a 403.
-async function initAuth() {
+// initConfig resolves both the scan-button visibility (auth) and the
+// dashboard feature flags from /api/me in a single fetch. Fail-quiet: if
+// /api/me errors, the scan button stays hidden and feature flags stay at
+// their defaults (all-off) — better silent than wrongly inviting non-admins
+// to a 403 or rendering a feature the operator chose not to enable.
+async function initConfig() {
   try {
     const res = await fetch('/api/me');
     if (!res.ok) return;
@@ -293,7 +301,10 @@ async function initAuth() {
     if (me && me.canRunScan) {
       document.getElementById('btn-scan').style.display = 'inline-flex';
     }
-  } catch (e) { /* keep button hidden */ }
+    if (me && me.features) {
+      features = Object.assign(features, me.features);
+    }
+  } catch (e) { /* keep defaults */ }
 }
 
 let scanPollTimer = null;
@@ -384,10 +395,12 @@ function renderTimeline() {
     const d = new Date(r.generatedAt);
     // reports[] is sorted DESC by generatedAt, so the older scan to compare
     // against is the next index up (i + 1). The oldest card has no neighbor
-    // to diff against; render no delta there.
+    // to diff against; render no delta there. Also gated on the
+    // timelineDeltas feature flag — off by default in the chart, enable via
+    // webUI.features.timelineDeltas: true.
     const prev = reports[i + 1];
     let deltaHTML = '';
-    if (prev) {
+    if (features.timelineDeltas && prev) {
       const delta = (r.summary.uniqueImages || 0) - (prev.summary.uniqueImages || 0);
       const cls = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-zero';
       const text = delta > 0 ? '+' + delta : String(delta);

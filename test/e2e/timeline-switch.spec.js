@@ -71,11 +71,39 @@ test('timeline scan-switch updates stat cards AND images table', async ({ page }
   expect(olderHasNewImage, `older report must NOT contain "${NEW_IMAGE_MARKER}"`).toBe(0);
 });
 
-// Timeline cards carry a delta vs the previous (older) scan. With two reports
-// where the newer one added the sentinel image, the newest card should show a
-// "+N" (delta-up) badge equal to the unique-image count growth, and the older
-// card — being the bottom of the timeline — should render no delta badge.
-test('timeline cards show unique-image deltas vs the previous scan', async ({ page }) => {
+// Timeline-delta badge is an opt-in feature gated on
+// /api/me.features.timelineDeltas. The integration cluster's chart install
+// leaves it off (matches the chart default), so the live /api/me returns
+// `features: { timelineDeltas: false }` and no badges render. We assert both
+// states by leaving the live API alone for the "off" case and route-mocking
+// /api/me for the "on" case.
+
+test('timeline cards omit deltas when the feature flag is disabled (default)', async ({ page }) => {
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.timeline-item');
+
+  const items = page.locator('.timeline-item');
+  await expect(items).toHaveCount(2, { timeout: 10_000 });
+
+  // No delta badges anywhere — the feature flag defaults to off.
+  await expect(page.locator('.timeline-item .delta')).toHaveCount(0);
+});
+
+test('timeline cards show unique-image deltas when the feature flag is enabled', async ({ page }) => {
+  // Mock /api/me to flip timelineDeltas on. Server-side enforcement is covered
+  // by internal/dashboard/server_test.go; this spec exercises the JS gate.
+  await page.route('**/api/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        authEnabled: false,
+        canRunScan: false,
+        features: { timelineDeltas: true },
+      }),
+    });
+  });
+
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForSelector('.timeline-item');
 

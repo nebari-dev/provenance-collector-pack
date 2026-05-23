@@ -57,6 +57,10 @@ func main() {
 
 	manualJobTTL := parseManualJobTTL(os.Getenv("PROVENANCE_MANUAL_JOB_TTL"))
 
+	features := dashboard.Features{
+		TimelineDeltas: parseBool("PROVENANCE_FEATURE_TIMELINE_DELTAS"),
+	}
+
 	slog.Info("configuration loaded",
 		"publicAddr", publicAddr,
 		"internalAddr", internalAddr,
@@ -66,9 +70,10 @@ func main() {
 		"authIssuer", authCfg.IssuerURL,
 		"adminGroups", len(authCfg.AdminGroups),
 		"manualJobTTL", manualJobTTL.String(),
+		"features.timelineDeltas", features.TimelineDeltas,
 	)
 
-	publicSrv := dashboard.NewServer(reportsDir).WithAuth(authCfg)
+	publicSrv := dashboard.NewServer(reportsDir).WithAuth(authCfg).WithFeatures(features)
 	internalSrv := dashboard.NewInternalServer(reportsDir, retention, maxUpload)
 
 	// /api/scan needs an in-cluster client + the CronJob's namespace/name.
@@ -196,6 +201,17 @@ func parseDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+// parseBool reads an env var and returns true iff the value is one of
+// "1", "true", "yes", or "on" (case-insensitive). Anything else, including
+// unset, is false — matching the opt-in posture for feature flags.
+func parseBool(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 func parseBytes(key string, fallback int64) int64 {

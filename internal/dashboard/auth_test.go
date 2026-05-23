@@ -55,6 +55,28 @@ func TestMe_AuthDisabled(t *testing.T) {
 	if resp.CanRunScan {
 		t.Errorf("expected canRunScan=false")
 	}
+	// Default features are all-off — matches the chart's opt-in posture.
+	if resp.Features.TimelineDeltas {
+		t.Errorf("expected features.timelineDeltas=false by default")
+	}
+}
+
+func TestMe_FeaturesReflectWithFeatures(t *testing.T) {
+	srv := NewServer(t.TempDir()).WithFeatures(Features{TimelineDeltas: true})
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp meResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	if !resp.Features.TimelineDeltas {
+		t.Errorf("expected features.timelineDeltas=true after WithFeatures")
+	}
 }
 
 func TestMe_NoBearer(t *testing.T) {

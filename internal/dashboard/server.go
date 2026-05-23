@@ -12,11 +12,22 @@ import (
 	"github.com/nebari-dev/provenance-collector/internal/report"
 )
 
+// Features holds the optional, opt-in UI features the server advertises via
+// /api/me. The zero value disables every feature, which is what consumers
+// upgrading from a release without the feature flags will get.
+type Features struct {
+	// TimelineDeltas controls whether the dashboard renders the +N/-N
+	// unique-image delta badge on each timeline card. Off by default to
+	// match the chart default; enable via webUI.features.timelineDeltas.
+	TimelineDeltas bool `json:"timelineDeltas"`
+}
+
 // Server serves the provenance dashboard web UI.
 type Server struct {
 	reportsDir string
 	auth       *authenticator
 	scan       ScanRunner
+	features   Features
 	mux        *http.ServeMux
 }
 
@@ -49,6 +60,14 @@ func (s *Server) WithAuth(cfg AuthConfig) *Server {
 // Jobs. When unset, /api/scan responds with 503.
 func (s *Server) WithScanRunner(r ScanRunner) *Server {
 	s.scan = r
+	return s
+}
+
+// WithFeatures sets the opt-in UI feature flags returned by /api/me. The
+// dashboard JS reads these during init() and gates rendering of the
+// corresponding components on them.
+func (s *Server) WithFeatures(f Features) *Server {
+	s.features = f
 	return s
 }
 
@@ -149,6 +168,7 @@ type meResponse struct {
 	Email       string   `json:"email,omitempty"`
 	Groups      []string `json:"groups,omitempty"`
 	CanRunScan  bool     `json:"canRunScan"`
+	Features    Features `json:"features"`
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +176,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	resp := meResponse{
 		AuthEnabled: s.auth.enabled(),
 		CanRunScan:  s.auth.canRunScan(id),
+		Features:    s.features,
 	}
 	if id != nil {
 		resp.Email = id.Email
