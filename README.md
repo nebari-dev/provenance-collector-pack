@@ -56,6 +56,8 @@ audit submissions, or ad-hoc `jq`.
 It exists because answering *"what is actually running on this cluster, where did it come from, and is it signed?"*
 should not require manual auditing.
 
+> Curious how the pieces fit together? See the [architecture diagram](#architecture) further down.
+
 ## What It Does
 
 | Capability | Description |
@@ -118,9 +120,6 @@ kubectl get application provenance-collector -n argocd
 kubectl get cronjob -n provenance-system
 kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-collector
 ```
-
-The operator wires routing (Envoy Gateway), OIDC (Keycloak), and surfaces the dashboard on the
-[Nebari Landing](https://github.com/nebari-dev/nebari-landing) page — no extra config needed beyond `hostname`.
 
 ### Standalone install (without the Nebari Operator)
 
@@ -428,8 +427,6 @@ webUI:
 nebariapp:
   enabled: false
 ```
-
-See [examples/](examples/) for complete deployment examples (standalone, Nebari, ArgoCD).
 
 ### Private registries
 
