@@ -23,6 +23,17 @@ jobs:
         env:
           GOTOOLCHAIN: auto
 
+      # configspec drift guards. checkenvs fails if any os.Getenv (or a name
+      # passed to one of the config helpers) references a PROVENANCE_* /
+      # KUBECONFIG name that isn't in internal/configspec.Vars. gendocs --check
+      # fails if docs/configuration.md is stale relative to the spec. Together
+      # they keep the docs and the code from drifting.
+      - name: Verify configspec coverage
+        run: go run ./hack/checkenvs
+
+      - name: Verify docs/configuration.md is up to date
+        run: go run ./hack/gendocs --check
+
   helm-lint:
     runs-on: ubuntu-latest
     steps:
