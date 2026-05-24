@@ -104,11 +104,54 @@ configured sink.
 
 ## Quick Start
 
-> In a full Nebari / NIC deployment the chart is managed by the Nebari Operator and ArgoCD — you do not need to
-> install it manually. See [`examples/`](examples/) for the operator-managed path. The steps below are for
-> standalone clusters and local development.
+The Provenance Collector is normally installed by the [Nebari Operator](https://github.com/nebari-dev/nebari-operator)
+as part of NIC's foundational software — you don't run any `helm` commands yourself, the operator and ArgoCD do it
+for you. The operator-managed path is the supported default; the standalone install below exists for vanilla
+Kubernetes clusters and local development.
 
-### Prerequisites
+### Operator-managed install (default)
+
+A complete ArgoCD `Application` manifest lives at [`examples/argocd-application.yaml`](examples/argocd-application.yaml)
+and is auto-stamped to the latest released chart version on every release. Apply it from your gitops repo or
+directly:
+
+```bash
+kubectl apply -f examples/argocd-application.yaml
+```
+
+The values most users adjust:
+
+```yaml
+nebariapp:
+  enabled: true                       # register the pack with the Nebari Operator
+  hostname: provenance.<your-domain>  # public URL the dashboard responds on
+
+webUI:
+  enabled: true                       # default true; required when persistence.mode=http
+  features:
+    timelineDeltas: false             # opt-in; show +N/-N badges between scans
+```
+
+Verify:
+
+```bash
+# Application picked up by ArgoCD
+kubectl get application provenance-collector -n argocd
+
+# Chart unpacked: CronJob + dashboard pods exist in the target namespace
+kubectl get cronjob -n provenance-system
+kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-collector
+```
+
+The operator wires routing (Envoy Gateway), OIDC (Keycloak), and surfaces the dashboard on the
+[Nebari Landing](https://github.com/nebari-dev/nebari-landing) page — no extra config needed beyond `hostname`.
+
+### Standalone install (without the Nebari Operator)
+
+> Use this path only on a vanilla Kubernetes cluster *without* NIC. Without the operator you're responsible for
+> routing and OIDC yourself if you want the dashboard reachable from outside the cluster.
+
+#### Prerequisites
 
 | Tool | Minimum version | Notes |
 | --- | --- | --- |
@@ -116,9 +159,12 @@ configured sink.
 | `helm` | 3.14+ | Chart install |
 | Kubernetes cluster | 1.26+ | Local (kind / k3d / minikube) or remote |
 | Cluster permissions | `cluster-admin` | Chart creates a `ClusterRole` + `ClusterRoleBinding` |
-| Nebari Operator CRDs | optional | Required only when `nebariapp.enabled=true` (see [docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md)) |
 
-### Install
+> If you want `nebariapp.enabled: true` on a standalone cluster, the Nebari Operator CRDs must still be installed
+> first — see [docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md). Most standalone installs leave
+> `nebariapp.enabled: false` and access the dashboard via `kubectl port-forward`.
+
+#### Install
 
 ```bash
 helm repo add nebari https://nebari-dev.github.io/helm-repository
@@ -137,14 +183,14 @@ helm install provenance-collector ./chart \
   --create-namespace
 ```
 
-### Verify
+#### Verify
 
 ```bash
 kubectl get cronjob -n provenance-system
 kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-collector
 ```
 
-### Trigger a Manual Run
+#### Trigger a manual run
 
 ```bash
 kubectl create job --from=cronjob/provenance-collector \
@@ -154,7 +200,7 @@ kubectl wait --for=condition=complete job/manual-run \
   -n provenance-system --timeout=5m
 ```
 
-### View the Report
+#### View the report
 
 ```bash
 # Default (persistence.mode=http) — read from the dashboard.
@@ -171,7 +217,7 @@ kubectl get configmap provenance-report \
   -o jsonpath='{.data.report\.json}' | jq .
 ```
 
-### Uninstall
+#### Uninstall
 
 ```bash
 helm uninstall provenance-collector -n provenance-system
