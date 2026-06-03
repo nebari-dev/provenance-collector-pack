@@ -10,8 +10,8 @@ const config = {
   tagline: 'Data provenance tracking on Nebari',
   favicon: 'img/favicon.ico',
 
-  url: 'https://nebari-provenance-collector-pack.netlify.app',
-  baseUrl: '/',
+  url: 'https://nebari-dev.github.io',
+  baseUrl: '/nebari-provenance-collector-pack/',
 
   organizationName: 'nebari-dev',
   projectName: 'nebari-provenance-collector-pack',
