@@ -1,0 +1,102 @@
+---
+layout: '@/layouts/PackDocsLayout.astro'
+title: 'Install'
+description: 'Two paths to install the Provenance Collector pack: operator-managed default, and standalone for vanilla Kubernetes.'
+---
+
+import { Button } from '@/components/ui/button';
+
+<p class="mb-3 text-xs font-medium uppercase tracking-wide text-primary">Quick Start</p>
+<h1 class="mb-4 text-4xl font-bold tracking-tight">Install</h1>
+<p class="mb-8 text-lg text-muted-foreground">
+  The Provenance Collector is normally installed by the Nebari Operator as part of NIC's
+  foundational software — you don't run <code class="rounded bg-muted px-1.5 py-0.5 text-sm">helm</code>
+  yourself, the operator and ArgoCD do it for you.
+</p>
+
+## Operator-managed install (default)
+
+A complete ArgoCD `Application` manifest lives at
+[`examples/argocd-application.yaml`](https://github.com/nebari-dev/nebari-provenance-collector-pack/blob/main/examples/argocd-application.yaml)
+and is auto-stamped to the latest released chart version on every release. Apply it from your
+gitops repo or directly:
+
+```bash
+kubectl apply -f examples/argocd-application.yaml
+```
+
+The values most users adjust:
+
+```yaml
+nebariapp:
+  enabled: true                       # register the pack with the Nebari Operator
+  hostname: provenance.<your-domain>  # public URL the dashboard responds on
+
+webUI:
+  enabled: true                       # default true; required when persistence.mode=http
+  features:
+    timelineDeltas: false             # opt-in; show +N/-N badges between scans
+```
+
+### Verify
+
+```bash
+kubectl get application provenance-collector -n argocd
+kubectl get cronjob -n provenance-system
+kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-collector
+```
+
+The operator wires routing (Envoy Gateway), OIDC (Keycloak), and surfaces the dashboard on the
+Nebari Landing page — no extra config needed beyond `hostname`.
+
+<div class="mt-8 flex flex-wrap gap-3">
+  <Button
+    render={<a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/blob/main/examples/argocd-application.yaml" />}
+    client:load
+  >
+    View the Application manifest
+  </Button>
+  <Button
+    variant="outline"
+    render={<a href="https://github.com/nebari-dev/nebari-provenance-collector-pack/issues" />}
+    client:load
+  >
+    Report an issue
+  </Button>
+</div>
+
+<p class="mt-3 text-xs text-muted-foreground">
+  ↑ Two <code>@nebari/button</code> instances landed via <code>shadcn add</code>. Default
+  variant on the left, outline variant on the right. Both rendered server-side; React hydrates
+  only because <code>render</code> is a polymorphic prop and the button receives an <code>&lt;a&gt;</code>.
+  For purely static buttons, drop <code>client:load</code> entirely.
+</p>
+
+## Standalone install (without the Nebari Operator)
+
+> Use this path only on a vanilla Kubernetes cluster *without* NIC. Without the operator you're
+> responsible for routing and OIDC yourself if you want the dashboard reachable from outside the
+> cluster.
+
+### Prerequisites
+
+| Tool | Minimum version | Notes |
+| --- | --- | --- |
+| `kubectl` | 1.26+ | Cluster interaction |
+| `helm` | 3.14+ | Chart install |
+| Kubernetes cluster | 1.26+ | Local (kind / k3d / minikube) or remote |
+| Cluster permissions | `cluster-admin` | Chart creates a `ClusterRole` + `ClusterRoleBinding` |
+
+### Install
+
+```bash
+helm repo add nebari https://nebari-dev.github.io/helm-repository
+helm repo update
+
+helm install provenance-collector nebari/provenance-collector \
+  --namespace provenance-system \
+  --create-namespace
+```
+
+See the [repo README](https://github.com/nebari-dev/nebari-provenance-collector-pack#standalone-install-without-the-nebari-operator)
+for the full standalone runbook (verify, trigger a manual run, view the report, uninstall).

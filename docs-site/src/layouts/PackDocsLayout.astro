@@ -1,0 +1,80 @@
+---
+import '@/styles/globals.css';
+
+interface Props {
+  // When used directly in `.astro` pages, the title / description come
+  // through as individual props. When used via the `layout:` frontmatter key
+  // in a `.md` / `.mdx` page, Astro wraps the page's frontmatter into a
+  // single `frontmatter` prop. Accept both shapes so a single layout works
+  // either way.
+  title?: string;
+  description?: string;
+  frontmatter?: { title?: string; description?: string };
+}
+
+const props = Astro.props as Props;
+const title = props.title ?? props.frontmatter?.title ?? 'Docs';
+const description = props.description ?? props.frontmatter?.description;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const nav: Array<{ label: string; href: string }> = [
+  { label: 'Overview', href: `${base}/` },
+  { label: 'Install', href: `${base}/install/` },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} · Provenance Collector</title>
+    {description && <meta name="description" content={description} />}
+    <link
+      rel="icon"
+      href="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/symbol/favicon.ico"
+    />
+  </head>
+  <body class="min-h-screen bg-background text-foreground antialiased">
+    <header class="border-b border-border">
+      <div class="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-4">
+        <a href={`${base}/`} class="flex items-center gap-3 text-sm font-semibold">
+          <img
+            src="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/logo-mark/horizontal/standard/Nebari-Logo-Horizontal-Lockup.png"
+            alt="Nebari"
+            class="h-7"
+          />
+          <span class="text-muted-foreground">/</span>
+          <span>Provenance Collector</span>
+        </a>
+        <nav class="flex items-center gap-5 text-sm">
+          {nav.map((item) => (
+            <a href={item.href} class="text-muted-foreground transition-colors hover:text-foreground">
+              {item.label}
+            </a>
+          ))}
+          <a
+            href="https://github.com/nebari-dev/nebari-provenance-collector-pack"
+            class="text-muted-foreground transition-colors hover:text-foreground"
+            >GitHub →</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-3xl px-6 py-12">
+      <slot />
+    </main>
+
+    <footer class="mt-16 border-t border-border">
+      <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-6 text-sm text-muted-foreground">
+        <span>BSD-3-Clause · Built by Nebari</span>
+        <a
+          href="https://github.com/nebari-dev/nebari-design"
+          class="transition-colors hover:text-foreground"
+          >Powered by nebari-design</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

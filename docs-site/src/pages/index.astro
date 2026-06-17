@@ -1,0 +1,61 @@
+---
+import PackDocsLayout from '@/layouts/PackDocsLayout.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<PackDocsLayout
+  title="Overview"
+  description="Compliance-grade provenance for every container running on your Nebari cluster."
+>
+  <p class="mb-3 text-xs font-medium uppercase tracking-wide text-primary">
+    Nebari Software Pack
+  </p>
+  <h1 class="mb-4 text-4xl font-bold tracking-tight">Provenance Collector</h1>
+  <p class="mb-8 text-lg text-muted-foreground">
+    A Kubernetes-native <code class="rounded bg-muted px-1.5 py-0.5 text-sm">CronJob</code>
+    that discovers running images and Helm releases, resolves digests, verifies signatures,
+    detects SLSA provenance and SBOM attestations, checks for updates, and emits a timestamped
+    JSON report. Optionally surfaced via a web dashboard and Grafana.
+  </p>
+
+  <div class="mb-12 flex flex-wrap gap-3">
+    <a
+      href={`${base}/install/`}
+      class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary-hover"
+      >Install →</a
+    >
+    <a
+      href="https://github.com/nebari-dev/nebari-provenance-collector-pack"
+      class="inline-flex h-9 items-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:border-muted-foreground hover:bg-accent"
+      >View on GitHub</a
+    >
+  </div>
+
+  <div class="mb-12 overflow-hidden rounded-lg border border-border">
+    <img
+      src="https://raw.githubusercontent.com/nebari-dev/nebari-provenance-collector-pack/main/docs/screenshots/dashboard-overview.png"
+      alt="Provenance Collector dashboard"
+      class="w-full"
+    />
+  </div>
+
+  <h2 class="mb-3 text-2xl font-semibold tracking-tight">What it does</h2>
+  <ul class="mb-12 space-y-2 text-sm">
+    <li><strong>Image Discovery</strong> — scans every pod, deduplicates by workload owner.</li>
+    <li><strong>Digest Resolution</strong> — resolves every tag to its immutable SHA256 digest.</li>
+    <li><strong>Signature Verification</strong> — cosign existence or key-based verification.</li>
+    <li><strong>SLSA Provenance</strong> — detects attestations via the OCI referrers API.</li>
+    <li><strong>SBOM Detection</strong> — SPDX and CycloneDX attestations.</li>
+    <li><strong>Update Checking</strong> — semver-aware, configurable level + pre-release filter.</li>
+    <li><strong>Helm Release Tracking</strong> — chart + app versions.</li>
+    <li><strong>Web Dashboard</strong> — filterable image table, timeline, detail panel, optional Run Scan.</li>
+    <li><strong>Grafana</strong> — JSON API for the Infinity datasource.</li>
+  </ul>
+
+  <h2 class="mb-3 text-2xl font-semibold tracking-tight">Status</h2>
+  <p class="text-sm text-muted-foreground">
+    Under active development as part of Nebari Infrastructure Core (NIC). APIs, chart values,
+    and report schema may change without notice while pre-1.0.
+  </p>
+</PackDocsLayout>
