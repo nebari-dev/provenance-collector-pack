@@ -38,12 +38,11 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: docs-site/package-lock.json
+          # No npm cache wiring yet — the spike ships package.json without a
+          # lockfile so reviewers can re-resolve. Enable `cache: 'npm'` +
+          # `cache-dependency-path: docs-site/package-lock.json` once the
+          # lockfile is committed (and swap `npm install` → `npm ci` below).
 
-      # Use `npm install` not `npm ci` until the lockfile lands — the spike
-      # ships package.json without a lock so reviewers can re-resolve. Swap
-      # this to `npm ci` once package-lock.json is committed.
       - name: Install dependencies
         run: npm install
 
