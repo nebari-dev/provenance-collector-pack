@@ -44,7 +44,11 @@ jobs:
       - name: Setup Go (Hugo Modules)
         uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          # Hugo only uses Go for module resolution, not compilation. Track
+          # stable so the CI go version stays >= whatever `hugo mod init`
+          # writes into site/go.mod (Hugo derives that from the local
+          # environment's Go version).
+          go-version: "stable"
 
       - name: Install Hugo Extended
         run: |
