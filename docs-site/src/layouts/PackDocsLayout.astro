@@ -34,6 +34,19 @@ const nav: Array<{ label: string; href: string }> = [
       rel="icon"
       href="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/symbol/favicon.ico"
     />
+    <!--
+      Pagefind: static client-side search. Index is generated post-`astro
+      build` by the pagefind CLI (see package.json `build` script) and lives
+      at `<base>/pagefind/`. Skip loading these files in `astro dev` — they
+      don't exist yet, and a 404 would noise up the console.
+    -->
+    {import.meta.env.PROD && (
+      <>
+        <link rel="stylesheet" href={`${base}/pagefind/pagefind-ui.css`} />
+        <script is:inline src={`${base}/pagefind/pagefind-ui.js`} defer></script>
+        <script is:inline set:html={`window.addEventListener('DOMContentLoaded', () => { if (window.PagefindUI) new PagefindUI({ element: '#search', basePath: '${base}/pagefind/', showSubResults: true, showImages: false }); });`}></script>
+      </>
+    )}
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">
     <header class="border-b border-border">
@@ -61,6 +74,14 @@ const nav: Array<{ label: string; href: string }> = [
         </nav>
       </div>
     </header>
+
+    {import.meta.env.PROD && (
+      <div class="border-b border-border bg-muted/30">
+        <div class="mx-auto max-w-3xl px-6 py-4">
+          <div id="search" class="pagefind-search"></div>
+        </div>
+      </div>
+    )}
 
     <main class="mx-auto max-w-3xl px-6 py-12">
       <slot />

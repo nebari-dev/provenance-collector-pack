@@ -16,6 +16,8 @@ npm run preview  # serve the built output
 
 Production build outputs static files under `dist/` — no SSR runtime, no server, no special hosting.
 
+`npm run build` runs `astro build` then `pagefind --site dist`, which scans the built HTML, indexes `<main>` content, and writes `dist/pagefind/` (the search index + UI assets the layout's header loads at runtime). The search box appears only on production builds — `astro dev` skips loading the Pagefind assets so console isn't noised up by 404s.
+
 ## Layout
 
 ```

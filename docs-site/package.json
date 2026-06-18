@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && pagefind --site dist",
     "preview": "astro preview"
+  },
+  "devDependencies": {
+    "pagefind": "^1.5.2"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
