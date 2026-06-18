@@ -1,0 +1,72 @@
+baseURL      = "https://nebari-dev.github.io/nebari-provenance-collector-pack/"
+languageCode = "en-US"
+title        = "Provenance Collector"
+theme        = ["github.com/nebari-dev/nebari-hugo-theme"]
+
+# Pull last-commit date for each markdown so the "Last updated" stamp
+# under page titles works.
+enableGitInfo = true
+
+[markup]
+  [markup.highlight]
+    noClasses   = false
+    codeFences  = true
+    guessSyntax = true
+  [markup.goldmark.renderer]
+    unsafe = true
+
+# Required for client-side Fuse.js search — emits /index.json that the
+# theme's search.ts fetches.
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+[params]
+  description = "Compliance-grade provenance for every container running on your Nebari cluster."
+  repo        = "https://github.com/nebari-dev/nebari-provenance-collector-pack"
+  search      = true
+  # "Edit this page on GitHub" link at the bottom of every page.
+  editBase    = "https://github.com/nebari-dev/nebari-provenance-collector-pack/edit/main/site/content"
+
+# Top-nav tabs. Active tab is determined by RelPermalink-prefix match.
+[[params.tabs]]
+  name = "Docs"
+  url  = "/"
+
+# Sidebar tree. Items are either {label, url} (real page) or
+# {label, soon=true} (stub with "soon" badge).
+[[params.sidebar]]
+  heading = "Getting Started"
+  [[params.sidebar.items]]
+    label = "Overview"
+    url   = "/"
+  [[params.sidebar.items]]
+    label = "Install"
+    url   = "/install/"
+
+[[params.sidebar]]
+  heading = "Reference"
+  [[params.sidebar.items]]
+    label = "Configuration"
+    soon  = true
+  [[params.sidebar.items]]
+    label = "NebariApp CRD"
+    soon  = true
+  [[params.sidebar.items]]
+    label = "Report schema"
+    soon  = true
+
+[[params.sidebar]]
+  heading = "Operating"
+  [[params.sidebar.items]]
+    label = "Dashboard tour"
+    soon  = true
+  [[params.sidebar.items]]
+    label = "Grafana integration"
+    soon  = true
+
+[module]
+  [module.hugoVersion]
+    extended = false
+    min      = "0.116.0"
+  [[module.imports]]
+    path = "github.com/nebari-dev/nebari-hugo-theme"

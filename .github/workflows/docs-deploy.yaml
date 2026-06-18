@@ -1,0 +1,86 @@
+name: Deploy docs site
+
+# Builds the Hugo docs site under site/ and publishes it to GitHub Pages.
+# Path-filtered so it only runs when the docs site itself changes; other
+# workflows (build-image, release, etc.) are unaffected.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/docs-deploy.yaml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/docs-deploy.yaml"
+  workflow_dispatch:
+
+# Permissions needed by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+env:
+  HUGO_VERSION: "0.140.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Needed for `enableGitInfo = true` to surface .Lastmod under page titles.
+          fetch-depth: 0
+
+      - name: Setup Go (Hugo Modules)
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+
+      - name: Install Hugo Extended
+        run: |
+          curl -sSL \
+            "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" \
+            -o /tmp/hugo.tar.gz
+          tar -xzf /tmp/hugo.tar.gz -C /tmp hugo
+          sudo mv /tmp/hugo /usr/local/bin/hugo
+          hugo version
+
+      - name: Pull theme module
+        run: hugo mod get -u
+
+      - name: Build site
+        run: |
+          hugo --minify \
+            --baseURL "${{ steps.pages.outputs.base_url || 'https://nebari-dev.github.io/nebari-provenance-collector-pack/' }}/"
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/public
+
+  deploy:
+    # PRs build but don't publish — only push to main triggers a deploy.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
