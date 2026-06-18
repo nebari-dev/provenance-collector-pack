@@ -5,6 +5,7 @@ description: 'Two paths to install the Provenance Collector pack: operator-manag
 ---
 
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 <p class="mb-3 text-xs font-medium uppercase tracking-wide text-primary">Quick Start</p>
 <h1 class="mb-4 text-4xl font-bold tracking-tight">Install</h1>
@@ -14,7 +15,7 @@ import { Button } from '@/components/ui/button';
   yourself, the operator and ArgoCD do it for you.
 </p>
 
-## Operator-managed install (default)
+## Operator-managed install (default) <Badge>Recommended</Badge>
 
 A complete ArgoCD `Application` manifest lives at
 [`examples/argocd-application.yaml`](https://github.com/nebari-dev/nebari-provenance-collector-pack/blob/main/examples/argocd-application.yaml)
@@ -72,7 +73,7 @@ Nebari Landing page — no extra config needed beyond `hostname`.
   For purely static buttons, drop <code>client:load</code> entirely.
 </p>
 
-## Standalone install (without the Nebari Operator)
+## Standalone install (without the Nebari Operator) <Badge variant="outline">Advanced</Badge>
 
 > Use this path only on a vanilla Kubernetes cluster *without* NIC. Without the operator you're
 > responsible for routing and OIDC yourself if you want the dashboard reachable from outside the
