@@ -11,6 +11,12 @@ export default defineConfig({
   base: '/nebari-provenance-collector-pack',
   trailingSlash: 'always',
   integrations: [mdx(), react()],
+  // Shiki theme matches Amit's Hugo spike (Catppuccin Mocha via Chroma).
+  // Always-dark code regardless of page theme — same palette across the
+  // Nebari docs surface.
+  markdown: {
+    shikiConfig: { theme: 'catppuccin-mocha' },
+  },
   vite: {
     plugins: [tailwindcss()],
   },

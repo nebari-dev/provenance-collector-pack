@@ -136,3 +136,123 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --radius: var(--radius);
 }
+
+/*
+ * Code-block styling. Matches Amit's Hugo spike on
+ * `nebari-data-science-pack@aktech/docs-site`: Catppuccin Mocha palette via
+ * Shiki (set in astro.config.mjs), Fira Code with programming ligatures,
+ * always-dark frame regardless of page theme.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap');
+
+main pre.astro-code,
+main pre.shiki {
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-feature-settings: 'liga' 1, 'calt' 1;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding: 0.9rem 1rem;
+  border: 1px solid #313244;
+  border-radius: var(--radius);
+  margin: 1.25rem 0;
+  overflow-x: auto;
+}
+
+main :not(pre) > code {
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 0.12em 0.35em;
+  border-radius: 5px;
+  font-size: 0.85em;
+}
+
+/*
+ * Light prose typography for markdown-generated pages. Scoped to <main> so
+ * explicit Tailwind classes on .astro pages (like the landing page) keep
+ * their layout — only un-classed markdown headings / paragraphs / tables
+ * pick this up.
+ */
+main h2:not([class]) {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  scroll-margin-top: 4rem;
+}
+
+main h3:not([class]) {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+main p:not([class]),
+main ul:not([class]),
+main ol:not([class]) {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  margin-bottom: 1rem;
+  color: var(--foreground);
+}
+
+main ul:not([class]) {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+main blockquote {
+  border-left: 3px solid var(--primary);
+  padding: 0.25rem 0 0.25rem 1rem;
+  margin: 1.25rem 0;
+  color: var(--muted-foreground);
+  font-size: 0.95rem;
+  background: var(--muted);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+main table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 1.25rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+main table th,
+main table td {
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+main table th {
+  background: var(--muted);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted-foreground);
+}
+
+main table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Only style un-classed prose links — leave anchor-as-button (with explicit
+ * Tailwind classes on the landing page) alone. */
+main a:not([class]) {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--primary) 40%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s;
+}
+
+main a:not([class]):hover {
+  text-decoration-color: var(--primary);
+}
