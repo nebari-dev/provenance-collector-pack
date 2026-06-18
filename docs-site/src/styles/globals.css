@@ -189,13 +189,16 @@ main h3:not([class]) {
   margin-bottom: 0.5rem;
 }
 
+/* Color is intentionally NOT set here — MDX wraps inline children of
+ * components (e.g. `<Button>text</Button>`) in a <p>, and forcing
+ * `color: var(--foreground)` would override the button's
+ * `text-primary-foreground` via the cascade. Let body color inherit. */
 main p:not([class]),
 main ul:not([class]),
 main ol:not([class]) {
   font-size: 0.95rem;
   line-height: 1.7;
   margin-bottom: 1rem;
-  color: var(--foreground);
 }
 
 main ul:not([class]) {
