@@ -1,4 +1,7 @@
-# Configuration Reference
++++
+title = "Configuration"
+description = "Every environment variable read by the collector and dashboard binaries, with type, default, and which scope sets it."
++++
 
 <!-- GENERATED FILE — do not edit by hand.
      Source of truth: internal/configspec/spec.go.

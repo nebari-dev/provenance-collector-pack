@@ -63,13 +63,11 @@ jobs:
         run: hugo mod get -u
 
       - name: Build site
-        run: |
-          hugo --minify \
-            --baseURL "${{ steps.pages.outputs.base_url || 'https://nebari-dev.github.io/nebari-provenance-collector-pack/' }}/"
-
-      - name: Setup Pages
-        id: pages
-        uses: actions/configure-pages@v6
+        # baseURL is hard-coded to the repo's Pages URL so PR builds don't
+        # need to query GitHub Pages configuration (which requires Pages to
+        # already be enabled on the repo). The deploy job below auto-enables
+        # Pages on the first push to main.
+        run: hugo --minify --baseURL "https://nebari-dev.github.io/nebari-provenance-collector-pack/"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -85,6 +83,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+        with:
+          # Enables Pages on the repo the first time this job runs, so the
+          # very first deploy works without a manual settings tweak.
+          enablement: true
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

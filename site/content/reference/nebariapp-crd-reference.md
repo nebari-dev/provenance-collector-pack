@@ -1,4 +1,8 @@
-# NebariApp CRD Reference
++++
+title = "NebariApp CRD"
+description = "Complete field-by-field reference for the NebariApp custom resource (reconcilers.nebari.dev/v1)."
++++
+
 
 Complete field-by-field reference for the NebariApp custom resource.
 

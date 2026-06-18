@@ -108,7 +108,7 @@ Setting `nebariapp.enabled: true` renders a `NebariApp` custom resource that reg
 landing-page registration so the web dashboard is reachable through the Nebari gateway under
 `https://<hostname>` and surfaced on the [Nebari Landing page](https://github.com/nebari-dev/nebari-landing).
 Leave it `false` for clusters that aren't running the operator. Full field reference:
-[docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md).
+[NebariApp CRD reference](site/content/reference/nebariapp-crd-reference.md).
 
 Verify:
 
@@ -136,7 +136,7 @@ kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-colle
 | Cluster permissions | `cluster-admin` | Chart creates a `ClusterRole` + `ClusterRoleBinding` |
 
 > If you want `nebariapp.enabled: true` on a standalone cluster, the Nebari Operator CRDs must still be installed
-> first — see [docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md). Most standalone installs leave
+> first — see [NebariApp CRD reference](site/content/reference/nebariapp-crd-reference.md). Most standalone installs leave
 > `nebariapp.enabled: false` and access the dashboard via `kubectl port-forward`.
 
 #### Install
@@ -308,7 +308,7 @@ WHEN count() OF images WHERE updateAvailable = true IS ABOVE 0
 
 An example dashboard (11 panels covering unique images, signature status, SLSA provenance, Helm releases, and more) is available at [`examples/grafana-dashboard.json`](examples/grafana-dashboard.json). Import it directly into Grafana as a `dashboard.grafana.app/v2beta1` resource.
 
-See [docs/configuration.md](docs/configuration.md) for the full Grafana setup guide.
+See [configuration reference](site/content/reference/configuration.md) for the full Grafana setup guide.
 
 ## Configuration
 
@@ -334,7 +334,7 @@ All configuration is via environment variables, set through `values.yaml`:
 | `PROVENANCE_REGISTRY_TIMEOUT` | `30s` | Timeout for registry operations |
 | `PROVENANCE_CLUSTER_NAME` | *(empty)* | Cluster name in report metadata |
 
-See [docs/configuration.md](docs/configuration.md) for the full reference.
+See [configuration reference](site/content/reference/configuration.md) for the full reference.
 
 ## Report Format
 
@@ -388,7 +388,7 @@ Reports are JSON with this structure:
 }
 ```
 
-See [docs/report-schema.md](docs/report-schema.md) for the full schema reference.
+See [report schema reference](site/content/reference/report-schema.md) for the full schema reference.
 
 ## Helm Chart Values
 
@@ -574,9 +574,9 @@ make test
 
 - [Open issues](https://github.com/nebari-dev/nebari-provenance-collector-pack/issues) — bug reports, feature
   requests, and documentation gaps.
-- [Configuration reference](docs/configuration.md) — every env var and its chart value.
-- [Report schema](docs/report-schema.md) — JSON output structure.
-- [NebariApp CRD reference](docs/nebariapp-crd-reference.md) — operator integration fields.
+- [Configuration reference](site/content/reference/configuration.md) — every env var and its chart value.
+- [Report schema](site/content/reference/report-schema.md) — JSON output structure.
+- [NebariApp CRD reference](site/content/reference/nebariapp-crd-reference.md) — operator integration fields.
 - [Deployment examples](examples/) — standalone, Nebari, ArgoCD.
 
 ## License

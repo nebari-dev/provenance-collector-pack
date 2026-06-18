@@ -74,7 +74,7 @@ func main() {
 		}
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Add each one to internal/configspec/spec.go with its Scope / Kind / Default / Description,")
-		fmt.Fprintln(os.Stderr, "then run `make docs` to regenerate docs/configuration.md.")
+		fmt.Fprintln(os.Stderr, "then run `make docs` to regenerate site/content/reference/configuration.md.")
 		os.Exit(1)
 	}
 

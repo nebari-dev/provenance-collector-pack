@@ -47,13 +47,13 @@ enableGitInfo = true
   heading = "Reference"
   [[params.sidebar.items]]
     label = "Configuration"
-    soon  = true
+    url   = "/reference/configuration/"
   [[params.sidebar.items]]
     label = "NebariApp CRD"
-    soon  = true
+    url   = "/reference/nebariapp-crd-reference/"
   [[params.sidebar.items]]
     label = "Report schema"
-    soon  = true
+    url   = "/reference/report-schema/"
 
 [[params.sidebar]]
   heading = "Operating"

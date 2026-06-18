@@ -1,4 +1,8 @@
-# Report Schema Reference
++++
+title = "Report schema"
+description = "JSON output structure emitted by the provenance collector."
++++
+
 
 The provenance collector outputs JSON reports with the following structure.
 

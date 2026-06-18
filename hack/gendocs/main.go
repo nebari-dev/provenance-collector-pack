@@ -1,8 +1,9 @@
-// gendocs renders docs/configuration.md from internal/configspec.Vars.
+// gendocs renders site/content/reference/configuration.md from
+// internal/configspec.Vars.
 //
 // Usage:
 //
-//	go run ./hack/gendocs           # write docs/configuration.md
+//	go run ./hack/gendocs           # write site/content/reference/configuration.md
 //	go run ./hack/gendocs --check   # exit 1 if the file on disk is stale
 //
 // `--check` exists so CI can fail a PR that touches the spec but doesn't
@@ -19,7 +20,7 @@ import (
 	"github.com/nebari-dev/provenance-collector/internal/configspec"
 )
 
-const outputPath = "docs/configuration.md"
+const outputPath = "site/content/reference/configuration.md"
 
 var docTemplate = template.Must(template.New("doc").Funcs(template.FuncMap{
 	"defaultCell": func(d string) string {
@@ -33,7 +34,10 @@ var docTemplate = template.Must(template.New("doc").Funcs(template.FuncMap{
 		}
 		return "`" + d + "`"
 	},
-}).Parse(`# Configuration Reference
+}).Parse(`+++
+title = "Configuration"
+description = "Every environment variable read by the collector and dashboard binaries, with type, default, and which scope sets it."
++++
 
 <!-- GENERATED FILE — do not edit by hand.
      Source of truth: internal/configspec/spec.go.
