@@ -44,6 +44,17 @@ func (c *SLSAProvenanceChecker) Check(ctx context.Context, imageRef string) (*re
 		}
 	}
 
+	// BuildKit stores SLSA provenance as an attestation manifest embedded in
+	// the image index (unknown/unknown), not as a referrer, so check there too.
+	for _, pt := range indexAttestationPredicateTypes(ctx, imageRef) {
+		if isSLSAPredicate(pt) {
+			return &report.ProvenanceInfo{
+				HasProvenance: true,
+				PredicateType: pt,
+			}, nil
+		}
+	}
+
 	return &report.ProvenanceInfo{HasProvenance: false}, nil
 }
 
