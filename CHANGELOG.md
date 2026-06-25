@@ -21,3 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   release (Helm chart to nebari-dev/helm-repository)
 - SecurityContext hardening (runAsNonRoot, readOnlyRootFilesystem, drop ALL
   capabilities)
+
+### Fixed
+- SBOM detection now reads the OCI referrers index, the same source provenance
+  detection uses, so SBOMs attached by `docker/build-push-action` (`sbom: true`)
+  are discovered and shown in the dashboard. The legacy cosign attestation tag
+  (`.att`) is retained as a fallback for images attested with older `cosign
+  attest` runs.
