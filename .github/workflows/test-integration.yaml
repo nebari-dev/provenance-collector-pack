@@ -22,17 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.ref }}
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
       - name: Set up Nebari sandbox
         id: sandbox
-        uses: nebari-dev/action-nebari-sandbox@v1
+        uses: nebari-dev/action-nebari-sandbox@222fcf36fd9a7a6c291f966055a84ad8bb38cfeb # v1.0.3
         with:
           profile: platform
           cluster-name: provenance-test
@@ -51,7 +51,7 @@ jobs:
       # and wait-healthy both default true). It also annotates nebari-root for a
       # refresh internally, so consumers don't need to poll or nudge themselves.
       - name: Register provenance-collector pack
-        uses: nebari-dev/action-nebari-sandbox/add-software-pack@v1
+        uses: nebari-dev/action-nebari-sandbox/add-software-pack@222fcf36fd9a7a6c291f966055a84ad8bb38cfeb # v1.0.3
         with:
           gitops-dir: ${{ steps.sandbox.outputs.gitops-dir }}
           app-name: provenance-collector
@@ -174,7 +174,7 @@ jobs:
       # having to re-run anything locally.
       - name: Upload Playwright artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-artifacts
           path: |
@@ -240,7 +240,7 @@ jobs:
 
       - name: Upload screenshots as artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dashboard-screenshots
           path: docs/screenshots/
