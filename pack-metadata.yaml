@@ -11,7 +11,7 @@
 #   pip install check-jsonschema
 #   check-jsonschema --schemafile <path-to>/pack-metadata.schema.json pack-metadata.yaml
 
-name: nebari-provenance-collector-pack
+name: provenance-collector-pack
 display_name: Provenance Collector
 level: alpha
 owner: viniciusdc
