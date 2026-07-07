@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"context"
 	"testing"
 )
 
@@ -85,6 +86,52 @@ func TestNewSBOMDiscoverer(t *testing.T) {
 	}
 	if _, ok := d.(*OCISBOMDiscoverer); !ok {
 		t.Error("expected *OCISBOMDiscoverer")
+	}
+}
+
+func TestSBOMFormatFromPredicate(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"https://spdx.dev/Document", "spdx"},
+		{"https://spdx.dev/Document/v2.3", "spdx"},
+		{"https://cyclonedx.org/bom", "cyclonedx"},
+		{"https://cyclonedx.org/bom/v1.5", "cyclonedx"},
+		{"https://slsa.dev/provenance/v1", ""},
+		{"https://in-toto.io/provenance/v1", ""},
+		{"", ""},
+		{"random", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := sbomFormatFromPredicate(tc.input); got != tc.want {
+				t.Errorf("sbomFormatFromPredicate(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOCISBOMDiscoverer_InvalidRef(t *testing.T) {
+	d := NewSBOMDiscoverer()
+	info, err := d.Discover(context.Background(), ":::invalid")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.HasSBOM {
+		t.Error("expected no SBOM for invalid ref")
+	}
+}
+
+func TestOCISBOMDiscoverer_UnreachableImage(t *testing.T) {
+	d := NewSBOMDiscoverer()
+	// Registry calls fail; should return HasSBOM=false without an error.
+	info, err := d.Discover(context.Background(), "localhost:1/nonexistent:v0.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.HasSBOM {
+		t.Error("expected no SBOM for unreachable image")
 	}
 }
 
