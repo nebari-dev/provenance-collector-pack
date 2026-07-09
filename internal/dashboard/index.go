@@ -9,135 +9,316 @@ const indexHTML = `<!DOCTYPE html>
 <link rel="icon" href="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/symbol/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  // Apply the persisted (or default) theme before first paint to avoid a flash
+  // of the wrong theme. Default is "light" when nothing is stored — this app
+  // intentionally opens light regardless of the OS preference.
+  (function () {
+    var KEY = 'provenance:themeMode';
+    function stored() {
+      try { var v = localStorage.getItem(KEY); if (v === 'light' || v === 'dark' || v === 'system') return v; } catch (e) {}
+      return 'light';
+    }
+    function systemDark() {
+      try { return window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; }
+    }
+    function isDark(mode) { return mode === 'dark' || (mode === 'system' && systemDark()); }
+    window.__themeKey = KEY;
+    window.__themeStored = stored;
+    window.__themeIsDark = isDark;
+    window.__applyTheme = function (mode) {
+      document.documentElement.classList.toggle('dark', isDark(mode));
+    };
+    window.__applyTheme(stored());
+  })();
+</script>
 <style>
+  /* Nebari design-system tokens (oklch), ported from the @nebari/theme shadcn
+     registry via nebari-llm-serving-pack. Light lives on :root, dark on .dark.
+     Treat these as upstream-managed; app-specific status / text tokens are
+     layered on top of each block. Below the tokens, dashboard-facing aliases
+     (--bg, --surface, --purple, --ok-*, ...) map onto these so the component
+     rules read cleanly and stay theme-aware. */
   :root {
-    --bg: #0d0d14;
-    --surface: #17171f;
-    --surface-2: #1e1e28;
-    --border: #26262f;
-    --border-subtle: #1e1e28;
-    --text: #f0f0f8;
-    --text-secondary: #c8c8d8;
-    --muted: #8888a0;
-    --faint: #555568;
-    --purple: #a78bfa;
-    --purple-dark: #7c3aed;
-    --purple-bg: rgba(124,58,237,0.15);
-    --green: #10b981;
-    --yellow: #f59e0b;
-    --red: #ef4444;
-    --info: #0b70e0;
-    --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --mono: 'DM Mono', 'SF Mono', 'Consolas', monospace;
-    --radius: 12px;
+    --radius: 0.625rem;
+
+    --background: oklch(100% 0 0);
+    --foreground: oklch(26.94% 0.0037 286.15);
+
+    --card: oklch(100% 0 0);
+    --card-foreground: oklch(26.94% 0.0037 286.15);
+
+    --popover: oklch(100% 0 0);
+    --popover-foreground: oklch(26.94% 0.0037 286.15);
+
+    --primary: oklch(55.06% 0.1886 311.45);
+    --primary-foreground: oklch(100% 0 0);
+    --primary-hover: oklch(47.01% 0.1577 311.26);
+
+    --secondary: oklch(95.04% 0.0042 236.5);
+    --secondary-foreground: oklch(32.95% 0.0209 254.12);
+
+    --muted: oklch(94.94% 0.0013 286.37);
+    --muted-foreground: oklch(54.86% 0.0154 285.88);
+    --muted-foreground-strong: oklch(47.01% 0.0112 285.96);
+
+    --accent: oklch(95.04% 0.0042 236.5);
+    --accent-foreground: oklch(32.95% 0.0209 254.12);
+
+    --destructive: oklch(95.06% 0.0247 29.93);
+    --destructive-foreground: oklch(54.97% 0.2151 27.33);
+
+    --warning: oklch(95.02% 0.0692 92.11);
+    --warning-foreground: oklch(46.91% 0.096 91.9);
+
+    --success: oklch(94.94% 0.0433 149.41);
+    --success-foreground: oklch(47.01% 0.1313 149.41);
+
+    --border: oklch(78.06% 0.0056 286.27);
+    --input: oklch(69.88% 0.013 286.06);
+    --border-strong: oklch(61.96% 0.0134 286);
+    --ring: oklch(61.98% 0.2159 311.67);
+
+    /* App-specific tokens (not part of the Nebari theme) */
+    --body-background: #ffffff;
+    --header-background: #f8f8f8;
+    --text-secondary: #4e596a;
+
+    --status-healthy-bg: #10b9811a;
+    --status-healthy-fg: #047857;
+    --status-healthy-dot: #10b981;
+
+    --status-unhealthy-bg: #ef44441a;
+    --status-unhealthy-fg: #b42318;
+    --status-unhealthy-dot: #ef4444;
+
+    --shadow: 0 4px 16px rgba(16,24,40,0.12);
+  }
+
+  .dark {
+    --background: oklch(26.94% 0.0037 286.15);
+    --foreground: oklch(97.91% 0 0);
+
+    --card: oklch(33.01% 0.0052 286.11);
+    --card-foreground: oklch(97.91% 0 0);
+
+    --popover: oklch(26.94% 0.0037 286.15);
+    --popover-foreground: oklch(97.91% 0 0);
+
+    --primary: oklch(61.98% 0.2159 311.67);
+    --primary-foreground: oklch(0% 0 0);
+    --primary-hover: oklch(69.98% 0.1926 311.48);
+
+    --secondary: oklch(40% 0.0269 250.57);
+    --secondary-foreground: oklch(95.04% 0.0042 236.5);
+
+    --muted: oklch(33.01% 0.0052 286.11);
+    --muted-foreground: oklch(69.88% 0.013 286.06);
+    --muted-foreground-strong: oklch(78.06% 0.0056 286.27);
+
+    --accent: oklch(40% 0.0269 250.57);
+    --accent-foreground: oklch(95.04% 0.0042 236.5);
+
+    --destructive: oklch(33.1% 0.1332 27.42);
+    --destructive-foreground: oklch(78.02% 0.1024 27.78);
+
+    --warning: oklch(33.09% 0.0677 92.2);
+    --warning-foreground: oklch(87.09% 0.1248 91.93);
+
+    --success: oklch(32.88% 0.0887 149.73);
+    --success-foreground: oklch(87.04% 0.0814 149.55);
+
+    --border: oklch(47.01% 0.0112 285.96);
+    --input: oklch(54.86% 0.0154 285.88);
+    --border-strong: oklch(61.96% 0.0134 286);
+    --ring: oklch(69.98% 0.1926 311.48);
+
+    /* App-specific tokens (not part of the Nebari theme) */
+    --body-background: #262628;
+    --header-background: #353538;
+    --text-secondary: #d0d5dd;
+
+    --status-healthy-bg: #10b9811a;
+    --status-healthy-fg: #6ee7b7;
+    --status-healthy-dot: #34d399;
+
+    --status-unhealthy-bg: #ef44441a;
+    --status-unhealthy-fg: #fda29b;
+    --status-unhealthy-dot: #f97066;
+
+    --shadow: 0 4px 16px rgba(0,0,0,0.45);
+  }
+
+  :root, .dark {
+    /* Dashboard-facing aliases onto the tokens above. */
+    --bg: var(--body-background);
+    --surface: var(--card);
+    --surface-2: var(--muted);
+    --text: var(--foreground);
+    --text-muted: var(--muted-foreground);
+    --faint: var(--muted-foreground);
+
+    --purple: var(--primary);
+    --purple-dark: var(--primary-hover);
+    --purple-bg: color-mix(in oklch, var(--primary) 12%, transparent);
+    --focus-ring: 0 0 0 2px color-mix(in oklch, var(--ring) 35%, transparent);
+    --hover-tint: color-mix(in oklch, var(--primary) 6%, transparent);
+
+    --ok-fg: var(--status-healthy-fg);
+    --ok-bg: var(--status-healthy-bg);
+    --ok-dot: var(--status-healthy-dot);
+    --warn-fg: var(--warning-foreground);
+    --warn-bg: var(--warning);
+    --warn-dot: var(--warning-foreground);
+    --bad-fg: var(--status-unhealthy-fg);
+    --bad-bg: var(--status-unhealthy-bg);
+    --bad-dot: var(--status-unhealthy-dot);
+
+    --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', 'SF Mono', 'Consolas', monospace;
     --radius-sm: 8px;
   }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; }
   body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; font-size: 14px; }
 
-  /* Nav */
-  .nav { position: sticky; top: 0; z-index: 100; background: rgba(13,13,20,0.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
-  .nav-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 52px; }
-  .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; color: var(--text); }
-  .nav-brand img { height: 22px; }
-  .nav-brand .sep { color: var(--faint); font-weight: 300; margin: 0 2px; }
-  .nav-meta { font-size: 12px; color: var(--muted); display: flex; gap: 16px; align-items: center; }
+  /* Header — full-width app bar: brand left, account menu right. */
+  .appbar { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 40px; background: var(--header-background); border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand-logo { height: 28px; width: auto; color: var(--foreground); display: block; }
+  .brand-sep { color: var(--border-strong); font-weight: 300; }
+  .brand-app { font-weight: 600; font-size: 14px; color: var(--text); }
 
-  .container { max-width: 1280px; margin: 0 auto; padding: 20px 24px; }
+  /* Account / profile menu */
+  .profile-menu { position: relative; }
+  .profile-btn { display: inline-flex; align-items: center; gap: 10px; background: none; border: none; padding: 4px 6px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text); font-family: var(--font); transition: background 0.15s ease; }
+  .profile-btn:hover, .profile-btn[aria-expanded="true"] { background: var(--accent); }
+  .profile-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .avatar { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .profile-name { font-size: 13px; font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .profile-btn .chevron { color: var(--muted-foreground); transition: transform 0.15s ease; }
+  .profile-btn[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+  .profile-popover { position: absolute; top: calc(100% + 6px); right: 0; width: 280px; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 6px; z-index: 220; }
+  .profile-popover[hidden] { display: none; }
+  .profile-head { padding: 8px 10px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+  .profile-head-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .profile-head-email { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .theme-seg { display: flex; gap: 2px; background: var(--muted); border-radius: var(--radius-sm); padding: 3px; margin: 4px 4px 6px; }
+  .theme-opt { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 4px; border: none; background: none; border-radius: 6px; color: var(--muted-foreground); font-size: 12px; font-family: var(--font); cursor: pointer; transition: color 0.15s ease, background 0.15s ease; }
+  .theme-opt:hover { color: var(--text); }
+  .theme-opt svg { width: 15px; height: 15px; }
+  .theme-opt.active { background: var(--background); color: var(--text); box-shadow: 0 1px 2px rgba(16,24,40,0.12); }
+  .menu-sep { height: 1px; background: var(--border); margin: 6px 0; }
+  .menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; background: none; border-radius: 6px; color: var(--text); font-size: 13px; font-family: var(--font); cursor: pointer; }
+  .menu-item:hover:not(:disabled) { background: var(--accent); }
+  .menu-item:disabled { color: var(--muted-foreground); opacity: 0.6; cursor: not-allowed; }
+
+  /* Full-width content area */
+  .container { width: 100%; padding: 24px 40px 40px; }
+
+  /* Page title + toolbar */
+  .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .page-title h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; max-width: 640px; }
+  .page-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .page-meta { display: flex; flex-direction: column; align-items: flex-end; font-size: 11px; color: var(--muted-foreground); line-height: 1.4; }
 
   /* Stats */
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; }
   .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; transition: all 0.15s ease; }
-  .stat:hover { border-color: var(--purple-dark); }
-  .stat.active { border-color: var(--purple-dark); background: var(--purple-bg); }
+  .stat:hover { border-color: var(--purple); }
+  .stat.active { border-color: var(--purple); background: var(--purple-bg); }
   .stat .value { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .stat .label { font-size: 10px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
-  .stat.green .value { color: var(--green); }
-  .stat.yellow .value { color: var(--yellow); }
-  .stat.red .value { color: var(--red); }
+  .stat .label { font-size: 10px; color: var(--text-muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
+  .stat.green .value { color: var(--ok-fg); }
+  .stat.yellow .value { color: var(--warn-fg); }
+  .stat.red .value { color: var(--bad-fg); }
 
   /* Panels */
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
   .panel-header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-  .panel-header h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .panel-header h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
   .panel-body { padding: 0; }
 
   /* Filters */
   .filters { padding: 10px 20px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .filters input[type="text"] {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
     padding: 5px 10px; color: var(--text); font-size: 12px; font-family: var(--font);
     min-width: 180px; outline: none; transition: all 0.15s ease;
   }
   .filters input[type="text"]::placeholder { color: var(--faint); }
-  .filters input[type="text"]:focus { border-color: var(--purple-dark); box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+  .filters input[type="text"]:focus { border-color: var(--purple); box-shadow: var(--focus-ring); }
   .filters select {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    padding: 5px 8px; color: var(--text); font-size: 12px; font-family: var(--font);
-    outline: none; cursor: pointer; transition: all 0.15s ease;
+    appearance: none; -webkit-appearance: none;
+    /* Custom chevron (native arrow removed) so it isn't cramped against the
+       value. Padding-right leaves room for the 12px chevron at right 10px. */
+    background: var(--background) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8b9c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+    border: 1px solid var(--input); border-radius: var(--radius-sm);
+    padding: 5px 30px 5px 10px; color: var(--text); font-size: 12px; font-family: var(--font);
+    min-width: 92px; outline: none; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  .filters select:focus { border-color: var(--purple-dark); box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+  .filters select:hover { border-color: var(--border-strong); }
+  .filters select:focus { border-color: var(--purple); box-shadow: var(--focus-ring); }
   .filter-label { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
-  /* Sits immediately after the last filter with the same 8px flex gap as every
-     other pair — the previous margin-left:auto pushed Clear to the far right
-     of the panel and left an awkward gap after UPDATE on wide screens. */
-  .filter-reset { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; }
-  .filter-reset:hover { border-color: var(--purple-dark); color: var(--text); }
+  .filter-reset { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--text-muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; }
+  .filter-reset:hover { border-color: var(--purple); color: var(--text); }
 
   /* Tables */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  /* Sticky header — stick below the 52px nav. Black background so rows
-     scrolling under the header don't bleed through the transparent th. */
-  thead th { position: sticky; top: 52px; z-index: 50; background: var(--surface); }
+  /* Sticky header — the appbar is not sticky, so the table header sticks to the
+     top of the viewport once scrolled past. Surface background so rows scrolling
+     under it don't bleed through. */
+  thead th { position: sticky; top: 0; z-index: 50; background: var(--surface); }
   th { text-align: left; padding: 8px 20px; color: var(--faint); font-weight: 500; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; transition: color 0.15s; }
-  th:hover { color: var(--muted); }
+  th:hover { color: var(--text-muted); }
   th .sort-arrow { font-size: 9px; margin-left: 3px; }
   td { padding: 8px 20px; border-bottom: 1px solid var(--border); font-size: 12px; }
   tr:last-child td { border-bottom: none; }
-  tr:hover { background: rgba(124,58,237,0.04); }
+  tr:hover { background: var(--hover-tint); }
   /* Workload column truncation — keeps long ReplicaSet/StatefulSet names
      from wrapping mid-token. Hover the cell to see the full name. */
   td.workload { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 
   /* Badges */
   .badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; letter-spacing: 0.02em; }
-  .badge-green { background: rgba(16,185,129,0.12); color: var(--green); }
-  .badge-yellow { background: rgba(245,158,11,0.12); color: var(--yellow); }
-  .badge-red { background: rgba(239,68,68,0.12); color: var(--red); }
-  .badge-muted { background: rgba(136,136,160,0.08); color: var(--faint); }
+  .badge-green { background: var(--ok-bg); color: var(--ok-fg); }
+  .badge-yellow { background: var(--warn-bg); color: var(--warn-fg); }
+  .badge-red { background: var(--bad-bg); color: var(--bad-fg); }
+  .badge-muted { background: var(--muted); color: var(--faint); }
   .badge-purple { background: var(--purple-bg); color: var(--purple); }
 
   /* Timeline */
   .timeline { display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px; }
-  .timeline-item { min-width: 120px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s ease; flex-shrink: 0; }
-  .timeline-item:hover { border-color: var(--purple-dark); }
-  .timeline-item.active { border-color: var(--purple-dark); background: var(--purple-bg); }
+  .timeline-item { min-width: 120px; padding: 10px; background: var(--body-background); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s ease; flex-shrink: 0; }
+  .timeline-item:hover { border-color: var(--purple); }
+  .timeline-item.active { border-color: var(--purple); background: var(--purple-bg); }
   .timeline-item .date { font-size: 12px; font-weight: 600; }
-  .timeline-item .time { font-size: 11px; color: var(--muted); }
+  .timeline-item .time { font-size: 11px; color: var(--text-muted); }
   .timeline-item .count { font-size: 10px; color: var(--faint); margin-top: 2px; }
   /* Delta vs the previous (older) scan — only rendered when a previous scan
      exists and the unique-image count differs. */
   .timeline-item .delta { display: inline-block; margin-top: 4px; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
-  .timeline-item .delta-up { background: rgba(16,185,129,0.12); color: var(--green); }
-  .timeline-item .delta-down { background: rgba(239,68,68,0.12); color: var(--red); }
-  .timeline-item .delta-zero { background: rgba(136,136,160,0.08); color: var(--faint); }
+  .timeline-item .delta-up { background: var(--ok-bg); color: var(--ok-fg); }
+  .timeline-item .delta-down { background: var(--bad-bg); color: var(--bad-fg); }
+  .timeline-item .delta-zero { background: var(--muted); color: var(--faint); }
 
   /* Pagination */
-  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
-  .pagination .page-info { }
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
   .pagination .page-controls { display: flex; gap: 4px; }
-  .pagination button { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; color: var(--text); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; }
-  .pagination button:hover:not(:disabled) { border-color: var(--purple-dark); }
+  .pagination button { background: var(--background); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; color: var(--text); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; }
+  .pagination button:hover:not(:disabled) { border-color: var(--purple); }
   .pagination button:disabled { opacity: 0.35; cursor: default; }
-  .pagination select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; color: var(--text); font-size: 11px; font-family: var(--font); }
+  .pagination select { background: var(--background); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; color: var(--text); font-size: 11px; font-family: var(--font); }
 
   /* Detail panel */
   .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
   .detail-overlay.open { opacity: 1; pointer-events: auto; }
   .detail-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 520px; max-width: 100vw; background: var(--surface); border-left: 1px solid var(--border); z-index: 201; transform: translateX(100%); transition: transform 0.25s ease; overflow-y: auto; }
   .detail-panel.open { transform: translateX(0); }
-  .detail-close { position: absolute; top: 12px; right: 16px; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.15s; }
+  .detail-close { position: absolute; top: 12px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.15s; }
   .detail-close:hover { color: var(--text); background: var(--surface-2); }
   .detail-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
   .detail-header h3 { font-size: 13px; font-weight: 600; word-break: break-all; font-family: var(--mono); line-height: 1.4; }
@@ -146,65 +327,128 @@ const indexHTML = `<!DOCTYPE html>
   .detail-section:last-child { border-bottom: none; }
   .detail-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); font-weight: 600; margin-bottom: 10px; }
   .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
-  .detail-row .label { color: var(--muted); }
+  .detail-row .label { color: var(--text-muted); }
   .detail-row .value { color: var(--text); font-family: var(--mono); font-size: 11px; text-align: right; max-width: 300px; word-break: break-all; }
   .detail-status { display: flex; align-items: center; gap: 8px; padding: 10px 0; }
   .detail-status .indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .detail-status .indicator.green { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
-  .detail-status .indicator.yellow { background: var(--yellow); box-shadow: 0 0 6px rgba(245,158,11,0.4); }
-  .detail-status .indicator.red { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .detail-status .indicator.green { background: var(--ok-dot); }
+  .detail-status .indicator.yellow { background: var(--warn-dot); }
+  .detail-status .indicator.red { background: var(--bad-dot); }
   .detail-status .indicator.muted { background: var(--faint); }
   .detail-status-text { font-size: 12px; }
   .detail-status-text .sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
 
   /* Run Scan button */
-  .btn-scan { background: var(--purple-bg); border: 1px solid var(--purple-dark); border-radius: var(--radius-sm); padding: 5px 12px; color: var(--purple); font-size: 12px; font-family: var(--font); font-weight: 500; cursor: pointer; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 6px; }
-  .btn-scan:hover:not(:disabled) { background: var(--purple-dark); color: white; }
+  .btn-scan { background: var(--purple-bg); border: 1px solid var(--purple); border-radius: var(--radius-sm); padding: 5px 12px; color: var(--purple); font-size: 12px; font-family: var(--font); font-weight: 500; cursor: pointer; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-scan:hover:not(:disabled) { background: var(--purple); color: var(--primary-foreground); }
   .btn-scan:disabled { opacity: 0.5; cursor: progress; }
-  .btn-scan .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 6px rgba(167,139,250,0.6); }
-  .btn-scan:hover:not(:disabled) .dot { background: white; box-shadow: 0 0 6px rgba(255,255,255,0.6); }
+  .btn-scan .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }
+  .btn-scan:hover:not(:disabled) .dot { background: var(--primary-foreground); }
 
   /* Export menu */
   .export-menu { position: relative; display: inline-flex; }
-  .export-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
-  .export-btn:hover, .export-btn[aria-expanded="true"] { border-color: var(--purple-dark); color: var(--text); }
+  .export-btn { background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; color: var(--text-muted); font-size: 11px; font-family: var(--font); cursor: pointer; transition: all 0.15s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+  .export-btn:hover, .export-btn[aria-expanded="true"] { border-color: var(--purple); color: var(--text); }
   .export-btn .caret { font-size: 9px; transition: transform 0.15s ease; }
   .export-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
-  .export-popover { position: absolute; top: calc(100% + 4px); right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; min-width: 140px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 150; display: flex; flex-direction: column; gap: 2px; }
+  .export-popover { position: absolute; top: calc(100% + 4px); right: 0; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; min-width: 140px; box-shadow: var(--shadow); z-index: 150; display: flex; flex-direction: column; gap: 2px; }
   .export-popover[hidden] { display: none; }
   .export-item { padding: 6px 10px; font-size: 12px; color: var(--text-secondary); border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.1s ease; }
-  .export-item:hover, .export-item:focus { background: var(--surface-2); color: var(--text); outline: none; }
+  .export-item:hover, .export-item:focus { background: var(--accent); color: var(--text); outline: none; }
 
   /* Toast */
   .toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
-  .toast { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; color: var(--text); box-shadow: 0 4px 12px rgba(0,0,0,0.4); animation: slidein 0.2s ease; }
-  .toast.error { border-left-color: var(--red); }
-  .toast.success { border-left-color: var(--green); }
-  .toast .sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+  .toast { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; color: var(--text); box-shadow: var(--shadow); animation: slidein 0.2s ease; }
+  .toast.error { border-left-color: var(--bad-dot); }
+  .toast.success { border-left-color: var(--ok-dot); }
+  .toast .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: var(--mono); }
   @keyframes slidein { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
   /* Misc */
-  .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+  .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
   .empty p { margin-top: 4px; font-size: 12px; }
-  .loading { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; }
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 12px; }
   .mono { font-family: var(--mono); font-size: 11px; }
-  .text-muted { color: var(--muted); }
+  .text-muted { color: var(--text-muted); }
   .result-count { font-size: 11px; color: var(--faint); padding: 6px 20px; border-bottom: 1px solid var(--border); }
   tr.clickable { cursor: pointer; }
+
+  @media (max-width: 640px) {
+    .appbar { padding: 0 16px; }
+    .container { padding: 16px; }
+    .profile-name { display: none; }
+  }
 </style>
 </head>
 <body>
-<nav class="nav">
-  <div class="nav-inner">
-    <div class="nav-brand">
-      <img src="https://raw.githubusercontent.com/nebari-dev/nebari-design/main/logo-mark/horizontal/Nebari-Logo-Horizontal-Lockup-White-text.svg" alt="Nebari"
-           onerror="this.style.display='none'" style="height:20px">
-      <span class="sep">/</span>
-      <span>Provenance</span>
+<header class="appbar">
+  <a href="/" class="brand" aria-label="Provenance home">
+    <svg class="brand-logo" viewBox="0 0 128 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Nebari">
+      <g clip-path="url(#nb_clip)">
+      <path d="M57.7327 24.8129H53.3465L46.0113 13.7068V24.8129H41.6252V6.80753H46.0113L53.3465 17.9657V6.80753H57.7327V24.8129Z" fill="currentColor"/>
+      <path d="M74.3281 18.7103H64.4025C64.4713 19.5988 64.7571 20.2787 65.2618 20.75C65.7665 21.2214 66.386 21.455 67.1222 21.455C68.2172 21.455 68.9763 20.9941 69.4039 20.0701H74.0716C73.8317 21.0107 73.4 21.8575 72.7764 22.6104C72.1528 23.3634 71.3706 23.9536 70.43 24.3811C69.4894 24.8087 68.4382 25.0214 67.2744 25.0214C65.8729 25.0214 64.6236 24.7232 63.5307 24.1246C62.4358 23.526 61.5806 22.6709 60.9654 21.5593C60.3501 20.4476 60.0414 19.1483 60.0414 17.6612C60.0414 16.1741 60.3459 14.8748 60.9529 13.7631C61.5598 12.6515 62.4107 11.7964 63.5057 11.1978C64.6007 10.5992 65.8562 10.301 67.2765 10.301C68.6969 10.301 69.8919 10.5909 70.9702 11.1728C72.0485 11.7547 72.889 12.5827 73.4959 13.6609C74.1028 14.7392 74.4073 15.9948 74.4073 17.4318C74.4073 17.8427 74.3823 18.2702 74.3302 18.7145L74.3281 18.7103ZM69.917 16.2743C69.917 15.5213 69.6604 14.9228 69.1474 14.4785C68.6343 14.0343 67.994 13.8111 67.2244 13.8111C66.4548 13.8111 65.8687 14.0259 65.364 14.4535C64.8593 14.881 64.5464 15.488 64.4275 16.2743H69.917Z" fill="currentColor"/>
+      <path d="M82.8688 10.9121C83.6384 10.5012 84.5185 10.2968 85.5113 10.2968C86.6918 10.2968 87.7596 10.5971 88.7169 11.1936C89.6742 11.7922 90.4313 12.6473 90.9861 13.759C91.5409 14.8706 91.8204 16.1616 91.8204 17.632C91.8204 19.1024 91.543 20.3976 90.9861 21.5176C90.4292 22.6375 89.6742 23.501 88.7169 24.1079C87.7596 24.7148 86.6918 25.0193 85.5113 25.0193C84.5018 25.0193 83.6217 24.8191 82.8688 24.4166C82.1159 24.0141 81.5256 23.4801 81.0981 22.8127V24.8129H76.712V5.83353H81.0981V12.5284C81.509 11.861 82.0992 11.3229 82.8688 10.9121ZM86.4477 15.0541C85.8408 14.4305 85.0921 14.1177 84.2036 14.1177C83.3151 14.1177 82.5914 14.4347 81.9845 15.0667C81.3776 15.6986 81.0731 16.5621 81.0731 17.657C81.0731 18.752 81.3755 19.6154 81.9845 20.2474C82.5914 20.8793 83.3318 21.1964 84.2036 21.1964C85.0754 21.1964 85.82 20.8752 86.4352 20.2349C87.0505 19.5946 87.3592 18.727 87.3592 17.632C87.3592 16.537 87.0547 15.6778 86.4477 15.0541Z" fill="currentColor"/>
+      <path d="M94.0896 13.759C94.6444 12.6473 95.4014 11.7922 96.3588 11.1936C97.3161 10.5951 98.386 10.2968 99.5644 10.2968C100.574 10.2968 101.458 10.5012 102.219 10.9121C102.981 11.3229 103.567 11.861 103.976 12.5285V10.5012H108.362V24.8129H103.976V22.7856C103.548 23.453 102.954 23.9911 102.192 24.402C101.431 24.8129 100.547 25.0173 99.5373 25.0173C98.3735 25.0173 97.314 24.7149 96.3567 24.1058C95.3994 23.4989 94.6423 22.6355 94.0875 21.5155C93.5327 20.3955 93.2532 19.1003 93.2532 17.6299C93.2532 16.1596 93.5306 14.8685 94.0875 13.7569L94.0896 13.759ZM103.066 15.0667C102.459 14.4347 101.719 14.1177 100.847 14.1177C99.9753 14.1177 99.2349 14.4306 98.6279 15.0542C98.021 15.6778 97.7165 16.5371 97.7165 17.632C97.7165 18.727 98.0189 19.5946 98.6279 20.2349C99.2349 20.8773 99.9753 21.1964 100.847 21.1964C101.719 21.1964 102.459 20.8794 103.066 20.2474C103.673 19.6155 103.978 18.752 103.978 17.657C103.978 16.5621 103.673 15.6986 103.066 15.0667Z" fill="currentColor"/>
+      <path d="M117.853 11.0268C118.623 10.5742 119.478 10.3469 120.419 10.3469V14.9895H119.213C118.118 14.9895 117.299 15.2252 116.75 15.6944C116.202 16.1658 115.928 16.9896 115.928 18.1701V24.8129H111.542V10.5012H115.928V12.8872C116.441 12.1009 117.082 11.4815 117.851 11.0268H117.853Z" fill="currentColor"/>
+      <path d="M122.842 8.33422C122.354 7.88163 122.11 7.3206 122.11 6.65528C122.11 5.98996 122.354 5.40389 122.842 4.94922C123.33 4.49664 123.958 4.2693 124.728 4.2693C125.497 4.2693 126.1 4.49664 126.588 4.94922C127.076 5.40181 127.318 5.97119 127.318 6.65528C127.318 7.33937 127.074 7.88163 126.588 8.33422C126.1 8.7868 125.481 9.01414 124.728 9.01414C123.975 9.01414 123.33 8.7868 122.842 8.33422ZM126.907 10.5012V24.8129H122.521V10.5012H126.907Z" fill="currentColor"/>
+      <path d="M33.5455 9.77332H27.5972C26.7978 9.77332 26.1498 10.4214 26.1498 11.2208C26.1498 12.0201 26.7978 12.6682 27.5972 12.6682H33.5455C34.3449 12.6682 34.9929 12.0201 34.9929 11.2208C34.9929 10.4214 34.3449 9.77332 33.5455 9.77332Z" fill="#20AAA1"/>
+      <path d="M31.9041 17.7029H27.7057C26.9063 17.7029 26.2582 18.351 26.2582 19.1503C26.2582 19.9497 26.9063 20.5978 27.7057 20.5978H31.9041C32.7035 20.5978 33.3515 19.9497 33.3515 19.1503C33.3515 18.351 32.7035 17.7029 31.9041 17.7029Z" fill="#20AAA1"/>
+      <path d="M22.1746 10.1237H6.04839C5.24899 10.1237 4.60095 10.7717 4.60095 11.5711C4.60095 12.3705 5.24899 13.0186 6.04839 13.0186H22.1746C22.974 13.0186 23.622 12.3705 23.622 11.5711C23.622 10.7717 22.974 10.1237 22.1746 10.1237Z" fill="#20AAA1"/>
+      <path d="M15.609 6.41751H4.66142C3.86203 6.41751 3.21399 7.06555 3.21399 7.86495C3.21399 8.66434 3.86203 9.31238 4.66142 9.31238H15.609C16.4084 9.31238 17.0564 8.66434 17.0564 7.86495C17.0564 7.06555 16.4084 6.41751 15.609 6.41751Z" fill="#20AAA1"/>
+      <path d="M5.07019 13.8257H1.44744C0.648039 13.8257 0 14.4738 0 15.2731C0 16.0725 0.648039 16.7206 1.44744 16.7206H5.07019C5.86959 16.7206 6.51763 16.0725 6.51763 15.2731C6.51763 14.4738 5.86959 13.8257 5.07019 13.8257Z" fill="#20AAA1"/>
+      <path d="M18.4558 2.7009H13.2104C12.411 2.7009 11.763 3.34894 11.763 4.14833C11.763 4.94773 12.411 5.59577 13.2104 5.59577H18.4558C19.2552 5.59577 19.9033 4.94773 19.9033 4.14833C19.9033 3.34894 19.2552 2.7009 18.4558 2.7009Z" fill="#20AAA1"/>
+      <path d="M29.9894 13.8153H16.756C15.9566 13.8153 15.3086 14.4633 15.3086 15.2627C15.3086 16.0621 15.9566 16.7101 16.756 16.7101H29.9894C30.7888 16.7101 31.4369 16.0621 31.4369 15.2627C31.4369 14.4633 30.7888 13.8153 29.9894 13.8153Z" fill="#20AAA1"/>
+      <path d="M22.7502 28.5795C25.3364 27.9851 27.1029 26.9507 28.3126 25.3218C28.9883 24.4124 29.4305 23.3362 29.735 21.8554H26.3271C26.0455 23.0797 25.2968 24.0141 24.0975 24.6398C22.6876 25.3739 21.1359 25.5408 19.6363 25.7014C19.5195 25.7139 19.4027 25.7264 19.2859 25.7389C18.8459 25.7869 18.7666 25.4448 18.7291 25.2821C18.3599 23.695 17.4506 22.4957 16.0261 21.7178C15.9135 21.6573 15.7612 21.5551 15.7278 21.3841C15.6965 21.2172 15.7946 21.0733 15.8843 20.9669C16.5955 20.1139 17.0042 19.094 17.3025 18.1701H13.7673C13.3147 19.1232 12.5618 19.8136 11.4648 20.2808C9.86509 20.9607 8.19449 21.0483 6.49678 20.5394C5.21828 20.1577 4.44868 19.3631 4.20675 18.1784L0.863464 18.1722C1.28476 21.2089 3.07424 23.1277 6.18185 23.8764C7.66683 24.2331 9.21646 24.2101 10.7139 24.1893L10.9475 24.1851C11.1061 24.183 11.2625 24.1788 11.421 24.1747C11.6525 24.1684 11.8861 24.1622 12.1218 24.1622C12.6161 24.1622 13.1166 24.1893 13.6151 24.2998C14.8852 24.5814 15.5422 25.3802 15.5672 26.6774C15.5881 27.7703 15.1939 28.7735 14.3617 29.7475C13.7006 30.5213 12.8934 31.1324 12.1113 31.7226C11.9904 31.8144 11.8694 31.9061 11.7463 32L16.7873 31.9937C17.5027 31.1741 18.0033 30.3711 18.3203 29.5452C18.4767 29.1385 18.752 29.0676 19.0252 29.0509C20.1369 28.9862 21.4487 28.8778 22.7481 28.5795H22.7502Z" fill="#BA18DD"/>
+      <path d="M26.1039 8.29459C28.4169 8.30502 30.296 6.48634 30.3148 4.21925C30.3336 1.90627 28.4878 0.0145932 26.1998 -6.30273e-06C23.8889 -0.0146058 21.9868 1.84787 21.9847 4.12331C21.9827 6.41334 23.8285 8.28416 26.1039 8.29459Z" fill="#EAB54E"/>
+      </g>
+      <defs><clipPath id="nb_clip"><rect width="127.318" height="32" fill="white"/></clipPath></defs>
+    </svg>
+    <span class="brand-sep">/</span>
+    <span class="brand-app">Provenance</span>
+  </a>
+
+  <div class="profile-menu">
+    <button id="profile-toggle" class="profile-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profile-popover" onclick="toggleProfileMenu()">
+      <span class="avatar" id="profile-initials">U</span>
+      <span class="profile-name" id="profile-name">Account</span>
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div id="profile-popover" class="profile-popover" role="menu" hidden>
+      <div class="profile-head">
+        <div class="profile-head-name" id="profile-head-name">Signed in</div>
+        <div class="profile-head-email" id="profile-head-email"></div>
+      </div>
+      <div class="theme-seg" role="group" aria-label="Theme">
+        <button type="button" class="theme-opt" data-mode="light" onclick="setThemeMode('light')" title="Light mode" aria-label="Light mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+          <span>Light</span>
+        </button>
+        <button type="button" class="theme-opt" data-mode="dark" onclick="setThemeMode('dark')" title="Dark mode" aria-label="Dark mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <span>Dark</span>
+        </button>
+        <button type="button" class="theme-opt" data-mode="system" onclick="setThemeMode('system')" title="System theme" aria-label="System theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><path d="M8 21h8M12 17v4"></path></svg>
+          <span>System</span>
+        </button>
+      </div>
+      <div class="menu-sep"></div>
+      <button class="menu-item" type="button" disabled title="Sign out is not available in this deployment">Sign out</button>
     </div>
-    <div class="nav-meta">
-      <span id="cluster-name"></span>
-      <span id="last-updated"></span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="page-head">
+    <div class="page-title">
+      <h1>Provenance</h1>
+      <p class="page-sub">Container image provenance, signatures, SBOMs, and available updates discovered across your cluster.</p>
+    </div>
+    <div class="page-actions">
+      <div class="page-meta">
+        <span id="cluster-name"></span>
+        <span id="last-updated"></span>
+      </div>
       <div class="export-menu">
         <button id="export-toggle" class="export-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-popover" onclick="toggleExportMenu()" title="Download the selected report">
           <span>Export</span><span class="caret">&#9662;</span>
@@ -220,9 +464,7 @@ const indexHTML = `<!DOCTYPE html>
       </button>
     </div>
   </div>
-</nav>
 
-<div class="container">
   <div class="stats" id="stats"><div class="loading">Loading...</div></div>
 
   <div class="panel">
@@ -272,6 +514,67 @@ let lastFilteredImages = [];
 // opt-in posture; initConfig() overwrites this with the server's response.
 let features = { timelineDeltas: false };
 
+// --- Theme control -------------------------------------------------------
+// The pre-paint script in <head> already applied the stored (or default-light)
+// theme and exposed helpers on window. Here we wire the segmented control and
+// keep "system" mode in sync with the OS preference.
+function setThemeMode(mode) {
+  try { localStorage.setItem(window.__themeKey, mode); } catch (e) {}
+  window.__applyTheme(mode);
+  syncThemeUI(mode);
+}
+
+function syncThemeUI(mode) {
+  document.querySelectorAll('.theme-opt').forEach(function (el) {
+    el.classList.toggle('active', el.getAttribute('data-mode') === mode);
+  });
+}
+
+(function initThemeSync() {
+  syncThemeUI(window.__themeStored());
+  try {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', function () {
+      // Only "system" mode should follow the OS; light/dark are explicit.
+      if (window.__themeStored() === 'system') window.__applyTheme('system');
+    });
+  } catch (e) { /* matchMedia unsupported — explicit modes still work */ }
+})();
+
+// --- Profile menu --------------------------------------------------------
+// initials returns up to two uppercase characters derived from the user's
+// email (this deployment's /api/me has no name field). Falls back to "U".
+function initials(email) {
+  if (email) {
+    const local = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
+    if (local) return local.slice(0, 2).toUpperCase();
+    return email.slice(0, 2).toUpperCase();
+  }
+  return 'U';
+}
+
+function setProfile(me) {
+  const email = (me && me.email) || '';
+  const display = email || 'Account';
+  document.getElementById('profile-initials').textContent = initials(email);
+  document.getElementById('profile-name').textContent = display;
+  document.getElementById('profile-head-name').textContent = email ? 'Signed in' : 'Not signed in';
+  document.getElementById('profile-head-email').textContent = email;
+}
+
+function toggleProfileMenu() {
+  const btn = document.getElementById('profile-toggle');
+  setProfileMenuOpen(btn.getAttribute('aria-expanded') !== 'true');
+}
+
+function setProfileMenuOpen(open) {
+  const btn = document.getElementById('profile-toggle');
+  const menu = document.getElementById('profile-popover');
+  if (!btn || !menu) return;
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) { menu.removeAttribute('hidden'); } else { menu.setAttribute('hidden', ''); }
+}
+
 async function init() {
   // Await the config fetch so renderTimeline() below sees the correct feature
   // flags on first paint. The call is fast and fail-quiet — defaults stand
@@ -288,16 +591,16 @@ async function init() {
   }
 }
 
-// initConfig resolves both the scan-button visibility (auth) and the
-// dashboard feature flags from /api/me in a single fetch. Fail-quiet: if
-// /api/me errors, the scan button stays hidden and feature flags stay at
-// their defaults (all-off) — better silent than wrongly inviting non-admins
-// to a 403 or rendering a feature the operator chose not to enable.
+// initConfig resolves the scan-button visibility (auth), the profile display,
+// and the dashboard feature flags from /api/me in a single fetch. Fail-quiet:
+// if /api/me errors, the scan button stays hidden, the profile shows the
+// signed-out state, and feature flags stay at their defaults (all-off).
 async function initConfig() {
   try {
     const res = await fetch('/api/me');
     if (!res.ok) return;
     const me = await res.json();
+    setProfile(me);
     if (me && me.canRunScan) {
       document.getElementById('btn-scan').style.display = 'inline-flex';
     }
@@ -476,8 +779,10 @@ function setExportMenuOpen(open) {
 }
 
 document.addEventListener('click', (ev) => {
-  const wrap = document.querySelector('.export-menu');
-  if (wrap && !wrap.contains(ev.target)) setExportMenuOpen(false);
+  const exportWrap = document.querySelector('.export-menu');
+  if (exportWrap && !exportWrap.contains(ev.target)) setExportMenuOpen(false);
+  const profileWrap = document.querySelector('.profile-menu');
+  if (profileWrap && !profileWrap.contains(ev.target)) setProfileMenuOpen(false);
   // Clicking an item should close the popover after the browser starts the
   // download. The role=menuitem anchors live inside .export-menu so the
   // outside-click branch above doesn't fire; close explicitly here.
@@ -487,7 +792,7 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape') setExportMenuOpen(false);
+  if (ev.key === 'Escape') { setExportMenuOpen(false); setProfileMenuOpen(false); }
 });
 
 function resetFilters() {
