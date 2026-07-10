@@ -32,7 +32,7 @@ jobs:
 
       - name: Set up Nebari sandbox
         id: sandbox
-        uses: nebari-dev/action-nebari-sandbox@222fcf36fd9a7a6c291f966055a84ad8bb38cfeb # v1.0.3
+        uses: nebari-dev/action-nebari-sandbox@76ffb6ce5dd4141aeccb8c02719c907f0fe9e25e # v2.1.0
         with:
           profile: platform
           cluster-name: provenance-test
@@ -46,12 +46,12 @@ jobs:
           docker build --build-arg VERSION=test -t provenance-collector:test .
           k3d image import provenance-collector:test --cluster provenance-test
 
-      # add-software-pack@v1 (>= v1.0.3) waits for the Application CR to exist
-      # and to reach status.health.status=Healthy by default (wait-for-application
-      # and wait-healthy both default true). It also annotates nebari-root for a
+      # add-software-pack waits for the Application CR to exist and to reach
+      # status.health.status=Healthy by default (wait-for-application and
+      # wait-healthy both default true). It also annotates nebari-root for a
       # refresh internally, so consumers don't need to poll or nudge themselves.
       - name: Register provenance-collector pack
-        uses: nebari-dev/action-nebari-sandbox/add-software-pack@222fcf36fd9a7a6c291f966055a84ad8bb38cfeb # v1.0.3
+        uses: nebari-dev/action-nebari-sandbox/add-software-pack@76ffb6ce5dd4141aeccb8c02719c907f0fe9e25e # v2.1.0
         with:
           gitops-dir: ${{ steps.sandbox.outputs.gitops-dir }}
           app-name: provenance-collector
@@ -250,7 +250,6 @@ jobs:
         if: always()
         run: |
           k3d cluster delete ${{ steps.sandbox.outputs.cluster-name || 'provenance-test' }}
-          docker network rm ${{ steps.sandbox.outputs.network-name }} 2>/dev/null || true
 
       - name: Debug info on failure
         if: failure()
