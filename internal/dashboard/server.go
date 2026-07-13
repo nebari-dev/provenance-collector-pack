@@ -37,7 +37,6 @@ type Server struct {
 func NewServer(reportsDir string) *Server {
 	s := &Server{reportsDir: reportsDir}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/reports", s.handleListReports)
 	mux.HandleFunc("/api/reports/", s.handleGetReport)
 	mux.HandleFunc("/api/me", s.handleMe)
@@ -155,11 +154,6 @@ func (s *Server) loadReport(filename string) (*report.ProvenanceReport, error) {
 		return nil, err
 	}
 	return &r, nil
-}
-
-func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(indexHTML))
 }
 
 // meResponse is the JSON shape returned by /api/me.

@@ -9,6 +9,7 @@ on:
       - "cmd/**"
       - "internal/**"
       - "chart/**"
+      - "frontend/**"
       - "Dockerfile"
       - "go.mod"
       - ".github/workflows/test-integration.yaml"
@@ -155,6 +156,28 @@ jobs:
             exit 1
           fi
 
+      # The dashboard is API-only now; the UI is the standalone React SPA. Serve
+      # it with Vite (dev mode) proxying /api to the port-forwarded dashboard,
+      # and point the browser tests at Vite. VITE_DEV_NO_AUTH bypasses the
+      # browser Keycloak login for CI (the sandbox chart installs with auth off).
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version-file: frontend/.node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Start frontend (Vite) for e2e
+        working-directory: frontend
+        run: |
+          npm ci
+          VITE_DEV_NO_AUTH=true WEBAPI_URL=http://localhost:8080 \
+            nohup npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/vite.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5173/ >/dev/null 2>&1 && { echo "Vite up (attempt $i)"; break; }
+            sleep 1
+          done
+
       - name: Install Playwright
         working-directory: test/e2e
         run: |
@@ -165,7 +188,7 @@ jobs:
       - name: Run dashboard e2e tests
         working-directory: test/e2e
         env:
-          DASHBOARD_URL: http://localhost:8080
+          DASHBOARD_URL: http://localhost:5173
           TIMELINE_NEW_IMAGE: traefik/whoami
         run: npx playwright test --reporter=list
 
@@ -209,11 +232,13 @@ jobs:
             const page = await browser.newPage();
             await page.setViewport({ width: 1440, height: 900 });
 
-            await page.goto('http://localhost:8080', { waitUntil: 'networkidle0', timeout: 30000 });
+            // Vite (dev, VITE_DEV_NO_AUTH) serves the SPA at :5173 and proxies
+            // /api to the dashboard; no browser login needed for the screenshot.
+            await page.goto('http://localhost:5173', { waitUntil: 'networkidle0', timeout: 30000 });
             await new Promise(r => setTimeout(r, 2000));
             await page.screenshot({ path: 'docs/screenshots/dashboard-overview.png', fullPage: false });
 
-            const row = await page.$('tr.clickable');
+            const row = await page.$('tr.cursor-pointer');
             if (row) {
               await row.click();
               await new Promise(r => setTimeout(r, 500));

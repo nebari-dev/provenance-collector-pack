@@ -49,9 +49,9 @@
 The Provenance Collector is a **Nebari Software Pack** that produces compliance-grade supply-chain reports for
 every container image and Helm release running on a Kubernetes cluster. It is deployed automatically by the
 [Nebari Operator](https://github.com/nebari-dev/nebari-operator) as part of NIC's foundational software, runs on a
-schedule as a `CronJob`, and ships each timestamped JSON report to the built-in web dashboard, a shared PVC, or a
-ConfigMap — whichever `persistence.mode` is set to — so it can be surfaced via the dashboard UI, Grafana,
-audit submissions, or ad-hoc `jq`.
+schedule as a `CronJob`, and ships each timestamped JSON report to the dashboard service, a shared PVC, or a
+ConfigMap — whichever `persistence.mode` is set to — so it can be surfaced via the web UI (a standalone React app),
+Grafana, audit submissions, or ad-hoc `jq`.
 
 It exists because answering *"what is actually running on this cluster, where did it come from, and is it signed?"*
 should not require manual auditing.
@@ -69,7 +69,7 @@ should not require manual auditing.
 | **SBOM Detection** | Detects attached SPDX / CycloneDX attestations |
 | **Update Checking** | Compares running tags against latest semver tags (configurable level, pre-release filtering) |
 | **Helm Release Tracking** | Discovers all deployed Helm releases with chart versions |
-| **Web Dashboard** | Optional UI with filters, sorting, pagination, and image detail panel |
+| **Web Dashboard** | Optional React + TypeScript SPA (served by nginx) with filters, sorting, pagination, and an image detail drawer |
 | **Grafana Integration** | JSON API compatible with the Infinity datasource for dashboards and alerting |
 | **Provenance Reports** | Outputs timestamped JSON reports via the dashboard's internal upload endpoint (default), a shared PVC, or a ConfigMap, with automatic retention |
 
@@ -95,20 +95,26 @@ The values most users adjust:
 ```yaml
 nebariapp:
   enabled: true                       # register the pack with the Nebari Operator
-  hostname: provenance.<your-domain>  # public URL the dashboard responds on
+  hostname: provenance.<your-domain>  # public URL the UI responds on
 
 webUI:
-  enabled: true                       # default true; required when persistence.mode=http
+  enabled: true                       # dashboard API + report-upload endpoint; required when persistence.mode=http
   features:
     timelineDeltas: false             # opt-in; show +N/-N badges between scans
+
+frontend:
+  enabled: true                       # standalone React UI (nginx); serves the SPA and proxies /api to the dashboard
+  keycloak:
+    url: https://keycloak.<your-domain>  # required when frontend.enabled: the browser keycloak-js (PKCE) login endpoint
 ```
 
 Setting `nebariapp.enabled: true` renders a `NebariApp` custom resource that registers the pack with the
-[Nebari Operator](https://github.com/nebari-dev/nebari-operator). The operator wires up routing, OIDC, and
-landing-page registration so the web dashboard is reachable through the Nebari gateway under
-`https://<hostname>` and surfaced on the [Nebari Landing page](https://github.com/nebari-dev/nebari-landing).
-Leave it `false` for clusters that aren't running the operator. Full field reference:
-[docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md).
+[Nebari Operator](https://github.com/nebari-dev/nebari-operator). The operator wires up routing, provisions a
+public Keycloak SPA client, and registers the landing page so the UI is reachable through the Nebari gateway
+under `https://<hostname>` and surfaced on the [Nebari Landing page](https://github.com/nebari-dev/nebari-landing).
+The React SPA performs the OIDC login in the browser via `keycloak-js` (PKCE); the gateway does not enforce auth
+(`nebariapp.auth.enforceAtGateway: false`). Leave `nebariapp.enabled: false` for clusters that aren't running the
+operator. Full field reference: [docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md).
 
 Verify:
 
@@ -137,7 +143,8 @@ kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-colle
 
 > If you want `nebariapp.enabled: true` on a standalone cluster, the Nebari Operator CRDs must still be installed
 > first — see [docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md). Most standalone installs leave
-> `nebariapp.enabled: false` and access the dashboard via `kubectl port-forward`.
+> `nebariapp.enabled: false` and hit the dashboard's JSON API via `kubectl port-forward` (the browser UI is the
+> separate `frontend` container — see [Web Dashboard](#web-dashboard)).
 
 #### Install
 
@@ -193,10 +200,10 @@ and persists until you delete it.
 #### View the report
 
 ```bash
-# Default (persistence.mode=http) — read from the dashboard.
+# Default (persistence.mode=http) — the dashboard exposes the JSON API (it is
+# API-only; the browser UI is the separate frontend container).
 kubectl port-forward -n provenance-system \
   svc/provenance-collector-web 8080:8080
-# Open http://localhost:8080
 
 # In another shell, fetch the latest JSON:
 curl -s http://localhost:8080/api/reports/latest | jq .
@@ -206,6 +213,9 @@ kubectl get configmap provenance-report \
   -n provenance-system \
   -o jsonpath='{.data.report\.json}' | jq .
 ```
+
+To open the browser UI, use the Nebari gateway (`nebariapp.enabled: true`, at `https://<hostname>`) or run it
+locally against the port-forwarded API — see [Web Dashboard](#web-dashboard).
 
 #### Uninstall
 
@@ -234,38 +244,53 @@ ServiceAccount if your cluster supports it.
 
 ## Web Dashboard
 
-The collector includes an optional web UI for browsing provenance reports.
+The UI is a standalone **React + TypeScript SPA** (Vite + Tailwind + the Nebari design system), built into its
+own nginx image and deployed as a separate `Deployment`/`Service`. The Go dashboard is **API-only**: nginx serves
+the SPA and reverse-proxies `/api/*` to the dashboard over cluster DNS. Enable both:
 
 ```yaml
 webUI:
-  enabled: true
-```
-
-Access via port-forward:
-
-```bash
-kubectl port-forward svc/provenance-collector-web 8080:8080 -n provenance-system
-# Open http://localhost:8080
+  enabled: true       # dashboard API + report-upload endpoint (required in http mode)
+frontend:
+  enabled: true       # standalone React UI (nginx)
+  keycloak:
+    url: https://keycloak.<your-domain>   # required: the browser keycloak-js login endpoint
 ```
 
 The dashboard provides:
 
 - Summary stat cards (`N / M` ratios for Signed, Verified, SLSA, SBOM; absolute counts for Images, Updates, Helm)
 - Report timeline to browse historical reports, with an opt-in `+N / -N` unique-image delta badge between adjacent scans (`webUI.features.timelineDeltas`)
-- Filterable, sortable, paginated image table (sticky column header, truncated workload column with full name on hover)
-- Click any image row for a detail panel showing signature, SLSA, SBOM, and update info
+- Filterable, sortable, paginated image table (truncated workload column with full name on hover)
+- Click any image row for a detail drawer showing signature, SLSA, SBOM, and update info
 - Helm releases table
+- Light / Dark / System theme, chosen from the profile menu (defaults to System)
 - **Run Scan** button — admin-gated; triggers a one-shot Job from the same CronJob template the schedule uses. Hidden unless `webUI.oidcIssuer` is set and the calling user's OIDC groups intersect with `webUI.adminGroups`. Auto-cleanup after `webUI.manualJobTTL` (default 1h).
 - **Export** button (`CSV` / `Markdown` / `JSON`) — downloads whichever report is currently selected on the timeline, not just the latest
 
-When deployed with `nebariapp.enabled: true`, the dashboard is accessible through the
-Nebari gateway with OIDC authentication, and the operator wires `webUI.oidcIssuer` /
-`webUI.adminGroups` from the `nebariapp.auth` block so Run Scan and other admin
-features light up for users in the configured groups.
+**Authentication.** The SPA runs the OIDC login in the browser via `keycloak-js` (PKCE), attaching the access
+token to every `/api` call; nginx forwards it to the dashboard, which validates it against Keycloak. Under
+`nebariapp.enabled: true` the operator provisions the public SPA client and registers routing/landing-page —
+the gateway itself does **not** enforce auth (`nebariapp.auth.enforceAtGateway: false`). The operator also wires
+`webUI.oidcIssuer` / `webUI.adminGroups` from the `nebariapp.auth` block so Run Scan lights up for users in the
+configured groups.
+
+**Running the UI locally.** Port-forward the dashboard API and point the Vite dev server at it (auth bypassed for
+local dev):
+
+```bash
+kubectl port-forward svc/provenance-collector-web 8080:8080 -n provenance-system &
+cd frontend
+npm ci
+VITE_DEV_NO_AUTH=true WEBAPI_URL=http://localhost:8080 npm run dev   # → http://localhost:5173
+```
+
+The `dev/Makefile` wraps this as `make ui-up` (install the chart, API only) + `make seed` (sample reports) +
+`make ui-dev` (port-forward + Vite). See [Development](#development).
 
 ### Dashboard API
 
-The web dashboard exposes a JSON API that can be used by external tools:
+The dashboard exposes a JSON API that the SPA and external tools consume:
 
 | Endpoint | Description |
 |---|---|
@@ -414,7 +439,7 @@ persistence:
   size: 1Gi
 
 webUI:
-  enabled: true               # Required in http mode (hosts the upload endpoint)
+  enabled: true               # Dashboard API + upload endpoint. Required in http mode
   # OIDC wiring for the Run Scan button. Auto-set by the operator under
   # nebariapp.enabled=true; supply manually on standalone installs.
   oidcIssuer: ""              # e.g. https://keycloak.example.com/realms/nebari
@@ -422,6 +447,13 @@ webUI:
   manualJobTTL: "1h"          # Auto-clean dashboard-triggered Jobs; "0" to keep
   features:
     timelineDeltas: false     # Opt-in; show +N/-N badges between scans
+
+frontend:
+  enabled: true               # Standalone React UI (nginx); requires webUI.enabled
+  keycloak:
+    url: ""                   # Required when frontend.enabled: browser keycloak-js (PKCE) endpoint
+    realm: nebari
+    clientId: ""              # Empty → operator convention <namespace>-<nebariapp>-spa
 
 # Nebari integration (optional)
 nebariapp:
@@ -465,6 +497,8 @@ The collector requires cluster-wide read access:
 
 ## Development
 
+Go (collector + dashboard API):
+
 ```bash
 # Build
 make build
@@ -478,6 +512,20 @@ make lint
 # Docker
 make docker-build
 ```
+
+Frontend (React SPA in `frontend/`):
+
+```bash
+cd frontend
+npm ci
+npm run dev      # Vite dev server (proxies /api to $WEBAPI_URL, default http://localhost:8080)
+npm run build    # tsc + vite build → dist/ (baked into the frontend nginx image)
+npm run check    # Biome lint + format
+npm test         # Vitest
+```
+
+For a full local loop against a real dashboard, see the [Web Dashboard](#web-dashboard) section
+(`make ui-up` + `make seed` + `make ui-dev` in `dev/`).
 
 ### Local Testing with kind
 
@@ -505,11 +553,11 @@ kubectl logs -n provenance-system job/test-run
 ```
 cmd/
   provenance-collector/       Collector entry point (CronJob)
-  dashboard/                  Web dashboard entry point
+  dashboard/                  Dashboard entry point (JSON API, API-only)
 internal/
   config/                     Environment-based configuration
   kubernetes/                 Client factory (in-cluster + kubeconfig)
-  dashboard/                  HTTP server, API handlers, HTML UI
+  dashboard/                  HTTP server + JSON API handlers, OIDC auth, scan/export
   discovery/
     images.go                 Pod-based container image discovery
     helm.go                   Helm release discovery via Helm SDK
@@ -524,7 +572,10 @@ internal/
     types.go                  Report JSON schema types
     generator.go              Orchestrator with concurrent enrichment
     writer.go                 HTTP, PVC, and ConfigMap output writers
-chart/                        Helm chart (CronJob + RBAC + Dashboard + NebariApp)
+frontend/                     React + TypeScript SPA (Vite, Tailwind, Nebari design system)
+    src/                      Components, hooks, Jotai store, API layer
+    Dockerfile                node build → nginx serve; nginx.default.conf
+chart/                        Helm chart (CronJob + RBAC + Dashboard API + Frontend + NebariApp)
 examples/                     Deployment examples (standalone, Nebari, ArgoCD)
 docs/                         Configuration, report schema, NebariApp CRD reference
 ```
@@ -538,7 +589,9 @@ flowchart TD
     HelmDisc[Helm Discovery<br/>via Helm SDK]
     Enrich[Enrichment<br/>digest resolve · cosign verify<br/>SBOM · SLSA · update check]
     Report[(JSON Provenance Report)]
-    Dash[Web Dashboard<br/>+ JSON API · owns the PVC]
+    Browser[Browser<br/>React SPA · keycloak-js PKCE]
+    Frontend[Frontend<br/>nginx · serves SPA · proxies /api]
+    Dash[Dashboard API<br/>JSON API · owns the PVC]
     CM[(ConfigMap<br/>persistence.mode=configmap)]
     PVC[(Shared PVC<br/>persistence.mode=pvc)]
     Grafana[Grafana<br/>via Infinity datasource]
@@ -552,13 +605,16 @@ flowchart TD
     Report -.-> CM
     Report -.-> PVC
     PVC -.-> Dash
+    Browser --> Frontend
+    Frontend -->|/api proxy| Dash
     Dash --> Grafana
 ```
 
 The collector reads the Kubernetes API for inventory and the registry for enrichment, then ships the report to
 the dashboard's internal upload endpoint (default), a ConfigMap, or a shared PVC depending on `persistence.mode`
 (see [Storage modes](#storage-modes)). It does not push to remote services or mutate cluster state outside the
-configured sink.
+configured sink. The UI is served separately: the browser loads the React SPA from the frontend nginx container,
+which reverse-proxies `/api/*` to the dashboard.
 
 ## Contributing
 
