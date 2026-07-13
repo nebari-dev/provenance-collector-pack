@@ -87,9 +87,23 @@ spec:
 | `enforceAtGateway` | *bool | No | `true` | Create an Envoy Gateway SecurityPolicy for gateway-level auth. When `false`, the operator provisions the client and Secret but does NOT create a SecurityPolicy - the app handles OAuth natively. See [auth-flow.md](auth-flow.md#app-native-oauth) for wiring guidance. |
 | `redirectURI` | string | No | `"/oauth2/callback"` | OAuth2 callback path. The full URL is `https://<hostname><redirectURI>`. |
 | `clientSecretRef` | *string | No | - | Reference to a Secret containing `client-id` and `client-secret`. If omitted and `provisionClient` is true, the operator creates `<name>-oidc-client` with keys: `client-id`, `client-secret`, and optionally `issuer-url`. |
+| `spaClient` | [SPAClientConfig](#specauthspaclient) | No | - | Provision a **public** PKCE client for a browser SPA (no client secret). Used with `enforceAtGateway: false` when a single-page app performs the OIDC login itself (e.g. via `keycloak-js`). |
 | `scopes` | []string | No | `["openid", "profile", "email"]` | OIDC scopes to request during authentication. |
 | `groups` | []string | No | - | Groups that have access. When specified, only users in these groups are authorized. Case-sensitive. |
 | `issuerURL` | string | No | - | OIDC issuer URL. Required when `provider=generic-oidc`, ignored for `keycloak`. Example: `https://accounts.google.com`. |
+
+### spec.auth.spaClient
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enabled` | bool | No | `false` | Provision a public PKCE (no-secret) client for a browser SPA. |
+| `clientId` | string | No | - | Client ID to provision. When empty, the operator generates one using the convention `<namespace>-<nebariapp-name>-spa`. The SPA must present this exact ID. |
+
+> **Provenance Collector uses this (Model B).** The chart sets `auth.enforceAtGateway: false` and
+> `auth.spaClient.enabled: true`, and the NebariApp targets the `-frontend` nginx Service. The React SPA runs the
+> OIDC login in the browser via `keycloak-js` (PKCE), and the operator provisions only the public SPA client — no
+> gateway SecurityPolicy. Keep `frontend.keycloak.clientId` (rendered into the SPA's `config.json`) in sync with
+> `spaClient.clientId`; leaving both empty makes them share the `<namespace>-<nebariapp-name>-spa` default.
 
 ## Status
 

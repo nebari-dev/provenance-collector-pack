@@ -37,15 +37,31 @@ type Server struct {
 func NewServer(reportsDir string) *Server {
 	s := &Server{reportsDir: reportsDir}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/api/reports", s.handleListReports)
-	mux.HandleFunc("/api/reports/", s.handleGetReport)
+	mux.HandleFunc("/api/reports", s.requireAuth(s.handleListReports))
+	mux.HandleFunc("/api/reports/", s.requireAuth(s.handleGetReport))
 	mux.HandleFunc("/api/me", s.handleMe)
 	mux.HandleFunc("/api/scan", s.handleScan)
-	mux.HandleFunc("/api/export", s.handleExport)
+	mux.HandleFunc("/api/export", s.requireAuth(s.handleExport))
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	s.mux = mux
 	return s
+}
+
+// requireAuth wraps a read handler so it rejects unauthenticated callers with
+// 401 whenever authorization is configured. It only checks for a valid
+// identity (any authenticated user) — not admin-group membership, which
+// remains specific to /api/scan. When auth is disabled (no OIDC issuer), the
+// wrapper is a no-op, preserving the local/dev unauthenticated mode. The
+// gateway deliberately does not enforce auth in the SPA login model, so these
+// read endpoints (reports, export) must gate access themselves.
+func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.auth.enabled() && s.auth.identify(r.Context(), r) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
 
 // WithAuth attaches an OIDC authorization config. Passing a config with an
@@ -155,11 +171,6 @@ func (s *Server) loadReport(filename string) (*report.ProvenanceReport, error) {
 		return nil, err
 	}
 	return &r, nil
-}
-
-func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(indexHTML))
 }
 
 // meResponse is the JSON shape returned by /api/me.

@@ -45,11 +45,14 @@ jobs:
       - name: Lint chart
         run: helm lint chart/
 
+      # frontend.enabled defaults to true and requires frontend.keycloak.url, so
+      # the render/validate steps below supply it. The webUI.enabled=false case
+      # also disables the frontend (its /api proxy target), so no url is needed.
       - name: Template chart (default values)
-        run: helm template test chart/ --set nebariapp.enabled=false
+        run: helm template test chart/ --set nebariapp.enabled=false --set frontend.keycloak.url=https://keycloak.test.example.com
 
       - name: Template chart (NebariApp enabled)
-        run: helm template test chart/ --set nebariapp.enabled=true --set nebariapp.hostname=test.example.com
+        run: helm template test chart/ --set nebariapp.enabled=true --set nebariapp.hostname=test.example.com --set frontend.keycloak.url=https://keycloak.test.example.com
 
       - name: Install kubeconform
         run: |
@@ -60,5 +63,24 @@ jobs:
         run: |
           helm template test chart/ --set nebariapp.enabled=false --set webUI.enabled=false \
             | kubeconform -strict -ignore-missing-schemas -summary
-          helm template test chart/ --set webUI.enabled=true \
+          helm template test chart/ --set webUI.enabled=true --set frontend.keycloak.url=https://keycloak.test.example.com \
             | kubeconform -strict -ignore-missing-schemas -summary
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version-file: frontend/.node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Biome check
+        run: npm run check

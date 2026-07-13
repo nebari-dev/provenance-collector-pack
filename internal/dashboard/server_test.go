@@ -165,42 +165,16 @@ func TestGetReport_PathTraversal(t *testing.T) {
 	}
 }
 
-func TestIndex(t *testing.T) {
+// The dashboard is API-only; the UI is served by the separate frontend
+// container. The root path is no longer handled and should 404.
+func TestRoot_NotFound(t *testing.T) {
 	srv := NewServer(t.TempDir())
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
-		t.Errorf("expected text/html, got %s", ct)
-	}
-	body := w.Body.String()
-	if len(body) < 100 {
-		t.Error("expected substantial HTML body")
-	}
-}
-
-func TestIndex_ContainsDetailPanel(t *testing.T) {
-	srv := NewServer(t.TempDir())
-	req := httptest.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	body := w.Body.String()
-	for _, expected := range []string{
-		"detail-panel",
-		"detail-overlay",
-		"openDetailIdx",
-		"closeDetail",
-		"detail-section",
-		"lastFilteredImages",
-	} {
-		if !contains(body, expected) {
-			t.Errorf("expected HTML to contain %q", expected)
-		}
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for /, got %d", w.Code)
 	}
 }
 
@@ -332,15 +306,87 @@ func TestListReports_NonexistentDir(t *testing.T) {
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
+// readEndpoints are the endpoints requireAuth wraps: they expose report data
+// and must reject unauthenticated callers when auth is configured.
+var readEndpoints = []string{
+	"/api/reports",
+	"/api/reports/provenance-20250615-060000.json",
+	"/api/export?filename=provenance-20250615-060000.json",
 }
 
-func searchString(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
+// When auth is enabled, the read endpoints reject a caller with no bearer (or
+// an unrecognized token) with 401 instead of leaking report data.
+func TestReadEndpoints_RequireAuth_Unauthenticated(t *testing.T) {
+	dir := setupTestDir(t)
+	stub := userInfoStub(t, nil, nil) // every token is unknown -> 401 from userinfo
+	defer stub.Close()
+
+	srv := NewServer(dir).WithAuth(AuthConfig{
+		IssuerURL:   stub.URL,
+		AdminGroups: []string{"/admins"},
+	})
+
+	for _, path := range readEndpoints {
+		t.Run(path, func(t *testing.T) {
+			for _, bearer := range []string{"", "bogus-token"} {
+				req := httptest.NewRequest("GET", path, nil)
+				if bearer != "" {
+					req.Header.Set("Authorization", "Bearer "+bearer)
+				}
+				w := httptest.NewRecorder()
+				srv.ServeHTTP(w, req)
+
+				if w.Code != http.StatusUnauthorized {
+					t.Errorf("bearer=%q: expected 401, got %d", bearer, w.Code)
+				}
+			}
+		})
 	}
-	return false
+}
+
+// Any authenticated user — not just admins — may read reports. A valid token
+// whose groups don't include an admin group must still get 200.
+func TestReadEndpoints_AuthenticatedNonAdmin_OK(t *testing.T) {
+	dir := setupTestDir(t)
+	stub := userInfoStub(t, map[string]string{
+		"user-token": `{"sub":"u2","email":"u@x","groups":["/users"]}`,
+	}, nil)
+	defer stub.Close()
+
+	srv := NewServer(dir).WithAuth(AuthConfig{
+		IssuerURL:   stub.URL,
+		AdminGroups: []string{"/admins"},
+	})
+
+	for _, path := range readEndpoints {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", path, nil)
+			req.Header.Set("Authorization", "Bearer user-token")
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected 200 for authenticated non-admin, got %d", w.Code)
+			}
+		})
+	}
+}
+
+// With auth disabled (no issuer), the read endpoints stay open — preserving
+// the local/dev unauthenticated mode.
+func TestReadEndpoints_AuthDisabled_Open(t *testing.T) {
+	dir := setupTestDir(t)
+	srv := NewServer(dir)
+
+	for _, path := range readEndpoints {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", path, nil)
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected 200 when auth disabled, got %d", w.Code)
+			}
+		})
+	}
 }
