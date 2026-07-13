@@ -27,6 +27,13 @@ did it come from, and is it signed?"* should not require manual auditing.
 | **Web dashboard** | Optional UI with filters, sorting, and an image detail panel |
 | **Grafana integration** | JSON API compatible with the Infinity datasource |
 
+## Guides
+
+- [Quick Start](/quick-start/) — install the collector and view your first report.
+- [Architecture](/architecture/) — how the collector, dashboard, and frontend fit together.
+- [Storage Modes](/storage-modes/) — choosing between `http`, `pvc`, and `configmap`.
+- [Web Dashboard](/web-dashboard/) — the UI, its JSON API, and Grafana integration.
+
 ## Reference
 
 - [Configuration](/configuration/) — every environment variable and its chart value.
@@ -36,7 +43,6 @@ did it come from, and is it signed?"* should not require manual auditing.
 > **Status:** Under active development as part of NIC. APIs, chart values, and
 > report schema may change without notice while pre-1.0.
 
-Full installation and deployment instructions live in the
-[project README](https://github.com/nebari-dev/provenance-collector-pack#readme)
-and the [`examples/`](https://github.com/nebari-dev/provenance-collector-pack/tree/main/examples)
-directory. These will be migrated into this site in follow-up changes.
+Additional deployment examples (standalone, Nebari, ArgoCD) live in the
+[`examples/`](https://github.com/nebari-dev/provenance-collector-pack/tree/main/examples)
+directory of the repository.

@@ -28,6 +28,15 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guides',
+          items: [
+            { label: 'Quick Start', slug: 'quick-start' },
+            { label: 'Architecture', slug: 'architecture' },
+            { label: 'Storage Modes', slug: 'storage-modes' },
+            { label: 'Web Dashboard', slug: 'web-dashboard' },
+          ],
+        },
+        {
           label: 'Reference',
           items: [
             { label: 'Configuration', slug: 'configuration' },
@@ -35,9 +44,6 @@ export default defineConfig({
             { label: 'NebariApp CRD', slug: 'nebariapp-crd-reference' },
           ],
         },
-        // Additional groups (Quick Start, Architecture, Deployment) will be
-        // populated as more of the README and examples/ are migrated into
-        // src/content/docs/.
       ],
     }),
   ],
