@@ -1,4 +1,7 @@
-# Report Schema Reference
+---
+title: Report Schema Reference
+description: JSON structure of the provenance reports the collector emits.
+---
 
 The provenance collector outputs JSON reports with the following structure.
 

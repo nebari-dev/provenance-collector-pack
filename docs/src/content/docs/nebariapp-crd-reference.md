@@ -1,4 +1,7 @@
-# NebariApp CRD Reference
+---
+title: NebariApp CRD Reference
+description: Field-by-field reference for the NebariApp custom resource used for Nebari Operator integration.
+---
 
 Complete field-by-field reference for the NebariApp custom resource.
 
@@ -83,8 +86,8 @@ spec:
 |-------|------|----------|---------|-------------|
 | `enabled` | bool | No | `false` | Whether to enforce OIDC authentication. |
 | `provider` | string | No | `"keycloak"` | OIDC provider. Values: `keycloak`, `generic-oidc`. |
-| `provisionClient` | *bool | No | `true` | Auto-provision an OIDC client in the provider. Only supported for `keycloak`. The operator creates the client and stores credentials in a Secret named `<name>-oidc-client`. The client ID follows the convention `<namespace>-<nebariapp-name>`. See [auth-flow.md](auth-flow.md#2-kubernetes-secret) for the full secret structure. |
-| `enforceAtGateway` | *bool | No | `true` | Create an Envoy Gateway SecurityPolicy for gateway-level auth. When `false`, the operator provisions the client and Secret but does NOT create a SecurityPolicy - the app handles OAuth natively. See [auth-flow.md](auth-flow.md#app-native-oauth) for wiring guidance. |
+| `provisionClient` | *bool | No | `true` | Auto-provision an OIDC client in the provider. Only supported for `keycloak`. The operator creates the client and stores credentials in a Secret named `<name>-oidc-client`. The client ID follows the convention `<namespace>-<nebariapp-name>`. See the auth-flow documentation in the nebari-operator repo for the full secret structure. |
+| `enforceAtGateway` | *bool | No | `true` | Create an Envoy Gateway SecurityPolicy for gateway-level auth. When `false`, the operator provisions the client and Secret but does NOT create a SecurityPolicy - the app handles OAuth natively. See the auth-flow documentation in the nebari-operator repo for wiring guidance. |
 | `redirectURI` | string | No | `"/oauth2/callback"` | OAuth2 callback path. The full URL is `https://<hostname><redirectURI>`. |
 | `clientSecretRef` | *string | No | - | Reference to a Secret containing `client-id` and `client-secret`. If omitted and `provisionClient` is true, the operator creates `<name>-oidc-client` with keys: `client-id`, `client-secret`, and optionally `issuer-url`. |
 | `spaClient` | [SPAClientConfig](#specauthspaclient) | No | - | Provision a **public** PKCE client for a browser SPA (no client secret). Used with `enforceAtGateway: false` when a single-page app performs the OIDC login itself (e.g. via `keycloak-js`). |

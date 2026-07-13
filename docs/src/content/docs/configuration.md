@@ -1,4 +1,7 @@
-# Configuration Reference
+---
+title: Configuration Reference
+description: Environment variables read by the collector and dashboard binaries. Generated from internal/configspec/spec.go.
+---
 
 <!-- GENERATED FILE — do not edit by hand.
      Source of truth: internal/configspec/spec.go.
