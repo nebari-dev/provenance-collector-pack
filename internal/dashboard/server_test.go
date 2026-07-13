@@ -305,4 +305,3 @@ func TestListReports_NonexistentDir(t *testing.T) {
 		t.Errorf("expected 500 for nonexistent dir, got %d", w.Code)
 	}
 }
-

@@ -24,6 +24,13 @@ spec:
           mode: http
         webUI:
           enabled: true
+        # The integration test runs the SPA itself via Vite (proxying /api to
+        # the port-forwarded dashboard), so the chart's nginx frontend is not
+        # needed. Disabling it also avoids requiring frontend.keycloak.url,
+        # which the sandbox has no Keycloak to provide — leaving it enabled
+        # fails the whole chart render and nothing (including -web) is created.
+        frontend:
+          enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: default
