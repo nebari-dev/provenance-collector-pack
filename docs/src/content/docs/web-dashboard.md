@@ -17,6 +17,8 @@ frontend:
     url: https://keycloak.<your-domain>   # required: the browser keycloak-js login endpoint
 ```
 
+![Provenance Collector dashboard: image inventory table with signature, SLSA, SBOM, and update status, plus summary stat cards](/screenshots/dashboard-overview.png)
+
 The dashboard provides:
 
 - Summary stat cards (`N / M` ratios for Signed, Verified, SLSA, SBOM; absolute counts for Images, Updates, Helm)
@@ -27,6 +29,8 @@ The dashboard provides:
 - Light / Dark / System theme, chosen from the profile menu (defaults to System)
 - **Run Scan** button — admin-gated; triggers a one-shot Job from the same CronJob template the schedule uses. Hidden unless `webUI.oidcIssuer` is set and the calling user's OIDC groups intersect with `webUI.adminGroups`. Auto-cleanup after `webUI.manualJobTTL` (default 1h).
 - **Export** button (`CSV` / `Markdown` / `JSON`) — downloads whichever report is currently selected on the timeline, not just the latest
+
+![Image detail drawer showing signature, SLSA provenance, SBOM, and update details for a single image](/screenshots/dashboard-detail.png)
 
 ## Authentication
 
