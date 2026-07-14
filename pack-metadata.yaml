@@ -18,6 +18,13 @@ owner: viniciusdc
 deprecated: false
 product_owner: null
 
+# Routes packs.nebari.dev/provenance-collector-pack/ to this pack's Cloudflare
+# Pages project (the dashboard's route generator adds it once this is true).
+docs_site: true
+
 nebariapp_integration: full
 scope:
   standalone-supported: yes
+
+links:
+  docs: https://packs.nebari.dev/provenance-collector-pack/
