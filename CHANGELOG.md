@@ -26,9 +26,10 @@ First stable release. Supersedes the `0.1.0-alpha.*` pre-releases.
   - Report export as CSV, Markdown, or JSON for the selected report.
   - Admin-gated "Run Scan" button that triggers a one-shot Job from the
     CronJob template, with automatic cleanup of manual Jobs.
-- SBOM (SPDX) and SLSA provenance (`mode=max`) attestations attached to the
-  published collector image on every build, discoverable via the OCI referrers
-  API.
+- Published collector and dashboard images are signed with keyless cosign
+  (Sigstore, via GitHub Actions OIDC - no managed key) and carry SPDX SBOM and
+  SLSA provenance (`mode=max`) attestations, all discoverable via the OCI
+  referrers API. See "Verifying the Collector Image" in the docs.
 - Helm chart: CronJob, RBAC, report storage, dashboard and frontend
   Deployments/Services, and optional NebariApp CRD integration.
 - Grafana dashboard example wired to the JSON API via the Infinity datasource.
@@ -55,10 +56,5 @@ First stable release. Supersedes the `0.1.0-alpha.*` pre-releases.
   attested with older `cosign attest` runs.
 
 ### Known limitations
-- The published collector image ships with SBOM and SLSA provenance
-  attestations but is **not yet cosign-signed**, so when the collector scans
-  its own cluster its image shows as unsigned. Image signing is tracked in #29,
-  deferred pending a decision on the signing trust root (keyless Sigstore vs.
-  key-managed).
 - Air-gapped clusters and private registry mirrors are not yet supported
   (tracked in #1).
