@@ -33,7 +33,8 @@ First stable release. Supersedes the `0.1.0-alpha.*` pre-releases.
   Deployments/Services, and optional NebariApp CRD integration.
 - Grafana dashboard example wired to the JSON API via the Infinity datasource.
 - Documentation site built with Astro + Starlight and the shared
-  `@nebari/starlight` theme, deployed to GitHub Pages.
+  `@nebari/starlight` theme, deployed to Cloudflare Pages and routed through
+  `packs.nebari.dev/provenance-collector-pack/`, with per-PR previews.
 - SecurityContext hardening (runAsNonRoot, readOnlyRootFilesystem, drop ALL
   capabilities).
 
