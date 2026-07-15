@@ -42,6 +42,7 @@ export default defineConfig({
             { label: 'Configuration', slug: 'configuration' },
             { label: 'Report Schema', slug: 'report-schema' },
             { label: 'NebariApp CRD', slug: 'nebariapp-crd-reference' },
+            { label: 'Verifying Images', slug: 'verifying-images' },
           ],
         },
       ],
