@@ -1,4 +1,13 @@
 name: Docs
+# Builds the Astro/Starlight docs site and deploys it to Cloudflare Pages.
+#
+# Requires two org- or repo-level secrets before deploy will succeed:
+#   CLOUDFLARE_API_TOKEN
+#   CLOUDFLARE_ACCOUNT_ID
+# Until those resolve for this repo, the build + link-check still run and gate
+# PRs; only the deploy step (and the preview comment) is skipped. Pushes to main
+# always attempt the deploy so a missing secret fails loudly rather than
+# silently shipping nothing.
 
 on:
   push:
@@ -14,29 +23,20 @@ on:
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
-# GitHub Pages deploy needs contents:read to check out, pages:write to publish,
-# and id-token:write for the OIDC token that actions/deploy-pages exchanges.
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  pull-requests: write
 
-# One Pages deploy at a time. Do not cancel a running deploy - it can leave the
-# site in a half-published state.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-  # Public URL the built site knows itself by. GitHub Pages serves org project
-  # sites at https://<owner>.github.io/<repo>/, so BASE is /<repo>/ and SITE is
-  # the origin.
-  SITE: https://nebari-dev.github.io
-  BASE: /provenance-collector-pack/
+  PACK_SLUG: provenance-collector-pack
 
 jobs:
-  build:
-    name: Build
+  docs:
+    name: Build and deploy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,48 +52,84 @@ jobs:
           cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
         working-directory: docs
+        run: npm ci
 
       - name: Install Playwright (mermaid rendering)
-        run: npx playwright install --with-deps chromium
         working-directory: docs
+        run: npx playwright install --with-deps chromium
 
       - name: Unit tests
-        run: npm test
         working-directory: docs
+        run: npm test
+
+      - name: Compute site, base, and deploy branch
+        id: base
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            # Production: served under the portal subpath by the packs.nebari.dev Worker.
+            echo "site=https://packs.nebari.dev" >> "$GITHUB_OUTPUT"
+            echo "base=/${PACK_SLUG}/" >> "$GITHUB_OUTPUT"
+            echo "branch=main" >> "$GITHUB_OUTPUT"
+          else
+            # Preview: its own *.pages.dev subdomain, so it lives at the root.
+            ALIAS=$(printf '%s' "$HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+            echo "site=https://${ALIAS}.${PACK_SLUG}.pages.dev" >> "$GITHUB_OUTPUT"
+            echo "base=/" >> "$GITHUB_OUTPUT"
+            echo "branch=${HEAD_REF}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build
-        run: npm run build
         working-directory: docs
         env:
-          SITE: ${{ env.SITE }}
-          BASE: ${{ env.BASE }}
+          SITE: ${{ steps.base.outputs.site }}
+          BASE: ${{ steps.base.outputs.base }}
+        run: npm run build
 
       - name: Check internal links
-        run: SKIP_BUILD=1 bash scripts/check-links.sh
         env:
-          BASE: ${{ env.BASE }}
+          BASE: ${{ steps.base.outputs.base }}
+        run: SKIP_BUILD=1 bash scripts/check-links.sh
 
-      # Pages artifact upload happens on every build (PR + push) so the artifact
-      # is always available for inspection; only the main-branch deploy job
-      # actually publishes it.
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      # PR previews need the Cloudflare secrets; fork PRs cannot read them and
+      # same-repo PRs may predate their provisioning, so previews skip when the
+      # secrets are absent. Pushes to main always attempt the deploy so a
+      # missing secret fails loudly instead of silently shipping nothing.
+      - name: Determine deployability
+        id: candeploy
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          OK=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ -z "${CF_TOKEN}" ] || [ -z "${CF_ACCOUNT}" ]; then
+              OK=false
+              echo "::notice::Cloudflare secrets unavailable; skipping preview deploy (build still gates)."
+            fi
+          fi
+          echo "ok=${OK}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        if: ${{ steps.candeploy.outputs.ok == 'true' }}
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
-          path: docs/dist
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # `pages deploy` does not auto-create the project (API error 8000007 on
+          # first deploy); create-if-missing keeps the workflow self-sufficient.
+          preCommands: npx wrangler pages project create ${{ env.PACK_SLUG }} --production-branch=main || true
+          command: pages deploy docs/dist --project-name=${{ env.PACK_SLUG }} --branch=${{ steps.base.outputs.branch }}
 
-  deploy:
-    name: Deploy to GitHub Pages
-    # Only main-branch pushes actually publish. PR builds stop at the
-    # build + link-check gate above.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+      - name: Comment preview URL
+        if: ${{ github.event_name == 'pull_request' && steps.deploy.outcome == 'success' }}
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: docs-preview
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          message: |
+            **Docs preview** for `${{ github.event.pull_request.head.ref }}`:
+            ${{ steps.deploy.outputs.pages-deployment-alias-url }}
