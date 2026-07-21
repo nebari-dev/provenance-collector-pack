@@ -121,8 +121,13 @@ func TestListReports_EmptyDir(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &reports); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
-	if reports != nil {
-		t.Errorf("expected null/empty, got %d reports", len(reports))
+	// An empty reports dir must encode as `[]`, not `null`, so the frontend's
+	// list handling doesn't choke on a null body.
+	if reports == nil {
+		t.Error("expected an empty array, got null")
+	}
+	if len(reports) != 0 {
+		t.Errorf("expected 0 reports, got %d", len(reports))
 	}
 }
 
