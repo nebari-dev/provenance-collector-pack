@@ -49,9 +49,6 @@ function CenteredMessage({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const me = useMe();
-  // The listing endpoint returns JSON `null` (not `[]`) when no scans exist yet,
-  // and a destructuring default only fills in for `undefined` — so coalesce
-  // explicitly, otherwise reports[0]/reports.length below throw on a fresh install.
   const { data, isLoading: reportsLoading, isError } = useReports();
   const reports = data ?? [];
 
