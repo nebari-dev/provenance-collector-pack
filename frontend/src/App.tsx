@@ -49,7 +49,8 @@ function CenteredMessage({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const me = useMe();
-  const { data: reports = [], isLoading: reportsLoading, isError } = useReports();
+  const { data, isLoading: reportsLoading, isError } = useReports();
+  const reports = data ?? [];
 
   const [active] = useAtom(activeReportFilenameAtom);
   const activeFilename = active ?? reports[0]?.filename ?? null;

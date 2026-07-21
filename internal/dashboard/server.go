@@ -111,7 +111,9 @@ func (s *Server) handleListReports(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	var reports []reportEntry
+	// Initialize non-nil so an empty reports dir encodes as `[]`, not `null` — a
+	// JSON null would slip past the frontend's list handling and crash the render.
+	reports := []reportEntry{}
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || e.Name() == "provenance-latest.json" {
 			continue
