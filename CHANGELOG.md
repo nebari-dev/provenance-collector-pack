@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-21
+
+### Added
+- Dashboard branding and theming support: the logo, title, and theme colors
+  can be customized through chart values and are injected into the frontend at
+  runtime (no rebuild required).
+
+### Fixed
+- Web dashboard no longer errors on page load when there are no reports yet;
+  the empty state renders cleanly on a fresh install.
+
 ## [0.1.0] - 2026-07-15
 
 First stable release. Supersedes the `0.1.0-alpha.*` pre-releases.
