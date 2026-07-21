@@ -1,6 +1,10 @@
 name: Integration Test
 
 on:
+  # Manual trigger — lets us run the full integration suite against any branch
+  # (notably main) without pushing a code change, e.g. to isolate sandbox/ArgoCD
+  # infra regressions from repo changes.
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
