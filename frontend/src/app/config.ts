@@ -67,9 +67,22 @@ export function safeCssValue(value: string | undefined): string | undefined {
   return value && !UNSAFE_CSS.test(value) ? value : undefined;
 }
 
-// Accept only non-empty, well-formed http(s) URLs or root-relative paths;
-// anything else (including "") becomes undefined so a bad config value can't
-// land in an <img src> or <link href>.
+// Image MIME types accepted as inline data: URIs (only when base64-encoded).
+const ALLOWED_DATA_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/svg+xml",
+  "image/webp",
+  "image/gif",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+]);
+
+// Accept only non-empty, well-formed http(s) URLs, root-relative paths, or
+// base64-encoded data: image URIs from the allow-list above; anything else
+// (including "") becomes undefined so a bad config value can't land in an
+// <img src> or <link href>.
 function sanitizeUrl(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
@@ -79,7 +92,21 @@ function sanitizeUrl(value: string | undefined): string | undefined {
   }
   try {
     const { protocol } = new URL(value);
-    return protocol === "http:" || protocol === "https:" ? value : undefined;
+    if (protocol === "http:" || protocol === "https:") {
+      return value;
+    }
+    if (protocol === "data:") {
+      // Only accept base64-encoded images whose MIME type is on the allow-list;
+      // reject data:text/html, non-base64 payloads, and anything else.
+      const match = value.match(/^data:([^;,]+)(;base64)?,/);
+      if (!match) {
+        return undefined;
+      }
+      const mime = match[1].toLowerCase();
+      const isBase64 = Boolean(match[2]);
+      return isBase64 && ALLOWED_DATA_MIME_TYPES.has(mime) ? value : undefined;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
