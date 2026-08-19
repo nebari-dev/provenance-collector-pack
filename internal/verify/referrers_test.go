@@ -66,3 +66,16 @@ func TestReferrerManifests_InvalidRef(t *testing.T) {
 		t.Errorf("expected no manifests for invalid ref, got %d", len(got))
 	}
 }
+
+func TestHasSignatureReferrer_InvalidRef(t *testing.T) {
+	if hasSignatureReferrer(context.Background(), ":::invalid") {
+		t.Error("expected false for invalid ref")
+	}
+}
+
+func TestHasSignatureReferrer_UnreachableImage(t *testing.T) {
+	// Registry call fails; must return false without panicking.
+	if hasSignatureReferrer(context.Background(), "localhost:1/nonexistent:v0.0.0") {
+		t.Error("expected false for unreachable image")
+	}
+}
