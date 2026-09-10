@@ -25,6 +25,7 @@ export default defineConfig({
           githubHref: 'https://github.com/nebari-dev/provenance-collector-pack',
         }),
       ],
+      lastUpdated: true,
       sidebar: [
         {
           label: 'Overview',
