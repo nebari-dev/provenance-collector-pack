@@ -46,7 +46,7 @@ func (v *CosignVerifier) Verify(ctx context.Context, imageRef string) (*report.S
 	}
 
 	// Otherwise, just check for signature existence.
-	return v.checkExistence(ref)
+	return v.checkExistence(ctx, ref)
 }
 
 // verifyWithKey performs full key-based cosign signature verification.
@@ -93,26 +93,24 @@ func (v *CosignVerifier) verifyWithKey(ctx context.Context, ref name.Reference) 
 }
 
 // checkExistence checks whether any cosign signature exists for the image
-// without verifying against a specific key.
-func (v *CosignVerifier) checkExistence(ref name.Reference) (*report.SignatureInfo, error) {
-	se, err := ociremote.SignedEntity(ref)
-	if err != nil {
-		return &report.SignatureInfo{
-			Error: fmt.Sprintf("fetching signed entity: %v", err),
-		}, nil
+// without verifying against a specific key. It looks in two places: the legacy
+// sha256-<digest>.sig tag (older cosign), and the OCI referrers index (modern
+// keyless cosign, which attaches the signature as a sigstore-bundle referrer).
+func (v *CosignVerifier) checkExistence(ctx context.Context, ref name.Reference) (*report.SignatureInfo, error) {
+	// Legacy path: the sha256-<digest>.sig tag.
+	if se, err := ociremote.SignedEntity(ref); err == nil {
+		if sigs, err := se.Signatures(); err == nil {
+			if sigList, err := sigs.Get(); err == nil && len(sigList) > 0 {
+				return &report.SignatureInfo{Signed: true}, nil
+			}
+		}
 	}
 
-	sigs, err := se.Signatures()
-	if err != nil {
-		return &report.SignatureInfo{
-			Error: fmt.Sprintf("checking signatures: %v", err),
-		}, nil
+	// Modern path: a signature attached as an OCI referrer (bundle format),
+	// which the legacy .sig-tag lookup does not see.
+	if hasSignatureReferrer(ctx, ref.Name()) {
+		return &report.SignatureInfo{Signed: true}, nil
 	}
 
-	sigList, err := sigs.Get()
-	if err != nil || len(sigList) == 0 {
-		return &report.SignatureInfo{Signed: false}, nil
-	}
-
-	return &report.SignatureInfo{Signed: true}, nil
+	return &report.SignatureInfo{Signed: false}, nil
 }
