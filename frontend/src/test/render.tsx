@@ -6,6 +6,16 @@ import type { ReactElement, ReactNode } from "react";
 import { ThemeProvider } from "@/hooks/theme-provider";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 
+function TestProviders({ client, children }: { client: QueryClient; children: ReactNode }) {
+  return (
+    <QueryClientProvider client={client}>
+      <JotaiProvider>
+        <ThemeProvider storageKey={THEME_STORAGE_KEY}>{children}</ThemeProvider>
+      </JotaiProvider>
+    </QueryClientProvider>
+  );
+}
+
 /**
  * Render a component wrapped in the app's providers (fresh QueryClient + Jotai
  * store per call, plus ThemeProvider) so tests are isolated from one another.
@@ -13,15 +23,8 @@ import { THEME_STORAGE_KEY } from "@/lib/theme";
 export function renderWithProviders(ui: ReactElement, options?: Omit<RenderOptions, "wrapper">) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-  function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <JotaiProvider>
-          <ThemeProvider storageKey={THEME_STORAGE_KEY}>{children}</ThemeProvider>
-        </JotaiProvider>
-      </QueryClientProvider>
-    );
-  }
-
-  return render(ui, { wrapper: Wrapper, ...options });
+  return render(ui, {
+    wrapper: ({ children }) => <TestProviders client={queryClient}>{children}</TestProviders>,
+    ...options,
+  });
 }
