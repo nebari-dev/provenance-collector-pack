@@ -144,3 +144,42 @@ func indexAttestationPredicateTypes(ctx context.Context, imageRef string) []stri
 	}
 	return out
 }
+
+// artifactType prefix of a cosign/sigstore signature stored in the modern
+// bundle format. Keyless `cosign sign` (v3+) attaches the signature as an OCI
+// referrer with this artifactType (e.g. ...bundle.v0.3+json) rather than at the
+// legacy sha256-<digest>.sig tag.
+const sigstoreBundleArtifactType = "application/vnd.dev.sigstore.bundle"
+
+// hasSignatureReferrer reports whether imageRef has a cosign/sigstore signature
+// attached via the OCI referrers API. This is the modern bundle-format
+// signature, which ociremote.SignedEntity (the legacy .sig tag) does not see.
+//
+// Uses remote.Referrers (the real referrers API) rather than the <algo>-<hex>
+// fallback tag, since a registry may serve referrers only through the API.
+// Any failure (bad ref, unreachable registry, no referrers) returns false: an
+// image without a signature referrer is the common case, not an error.
+func hasSignatureReferrer(ctx context.Context, imageRef string) bool {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return false
+	}
+	desc, err := remote.Get(ref, remote.WithContext(ctx))
+	if err != nil {
+		return false
+	}
+	idx, err := remote.Referrers(ref.Context().Digest(desc.Digest.String()), remote.WithContext(ctx))
+	if err != nil {
+		return false
+	}
+	manifest, err := idx.IndexManifest()
+	if err != nil || manifest == nil {
+		return false
+	}
+	for _, m := range manifest.Manifests {
+		if strings.HasPrefix(string(m.ArtifactType), sigstoreBundleArtifactType) {
+			return true
+		}
+	}
+	return false
+}
